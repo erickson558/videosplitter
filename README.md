@@ -1,84 +1,166 @@
-# VideoSplitter V1.0.0
+# VideoSplitter V1.0.1
 
-Aplicacion de escritorio en Python para dividir un video en partes numeradas por tiempo o en partes iguales, y convertir cada parte al formato deseado.
+Aplicacion de escritorio en Python para dividir videos en segmentos numerados, ya sea por duracion fija o en partes iguales, con salida en MP4, MKV o MOV y perfiles listos para Shorts o video horizontal.
 
-## Resultado de salida
+## Que hace el programa
 
-Para un archivo `MiVideo.mp4`, genera:
+- Permite seleccionar un video de entrada desde la GUI.
+- Permite dividirlo por cantidad de segundos o por cantidad de partes iguales.
+- Convierte cada salida a H.264 + AAC.
+- Permite escoger perfil de video: Short 9:16, Normal 16:9 u Original.
+- Permite escoger contenedor: MP4, MKV o MOV.
+- Guarda configuraciones persistentes en `videosplitter.settings.json`.
+- Genera un ejecutable `.exe` en Windows con FFmpeg embebido.
+
+## Ejemplo de salida
+
+Para un archivo `MiVideo.mp4`, genera archivos como:
 
 - `MiVideo Parte 1.mp4`
 - `MiVideo Parte 2.mp4`
 - `MiVideo Parte 3.mp4`
 
-Cada parte se exporta segun tres selecciones en la interfaz:
+## Tecnologias
 
-- Modo de division:
-- `Por segundos`
-- `Partes iguales` indicando cuantas partes deseas generar
+- Python 3.12
+- Tkinter para la interfaz grafica
+- FFmpeg y FFprobe para procesamiento multimedia
+- PyInstaller para empaquetado del `.exe`
 
-- Perfil de video:
-- `Short 9:16 (1080x1920)` para Shorts de YouTube
-- `Normal 16:9 (1920x1080)` para salida horizontal
-- `Original (sin redimensionar)`
+## Requisitos
 
-- Contenedor:
-- `MP4`
-- `MKV`
-- `MOV`
+- Windows para compilar el `.exe`
+- Python 3.10 o superior
+- Git y GitHub CLI (`gh`) para automatizar releases
 
-Codificacion:
+## Dependencias
 
-- Video `H.264`
-- Audio `AAC`
+Dependencias de build:
 
-## Ejecucion en desarrollo
+```powershell
+pip install -r requirements-build.txt
+```
+
+Actualmente la app no requiere dependencias externas para ejecutar el codigo fuente fuera de las herramientas de build.
+
+## Ejecutar en desarrollo
 
 ```powershell
 python main.py
 ```
 
-## Compilacion a EXE
+## Compilar el ejecutable
 
 ```powershell
 python build_exe.py
 ```
 
-El script:
+El script de build:
 
-- Usa el primer archivo `.ico` que encuentre en la carpeta del proyecto.
-- Si no hay `.ico`, crea `videosplitter.ico`.
-- Descarga FFmpeg automaticamente si no existe en `third_party/ffmpeg`.
-- Incluye `ffmpeg.exe` y `ffprobe.exe` dentro del ejecutable final.
-- Inserta la version `1.0.0` en los metadatos del `.exe`.
-- Genera `VideoSplitter.exe` en esta misma carpeta.
-- El primer build requiere internet para descargar FFmpeg.
-
-## Modo silencioso
-
-La app ejecuta FFmpeg y FFprobe en segundo plano sin mostrar ventana CMD.
-
-## Correccion de progreso N/A
-
-Si FFmpeg devuelve valores `N/A` durante el progreso, la app los ignora sin fallar.
-
-## Requisitos
-
-- Python 3.10+
-- FFmpeg no es obligatorio en el sistema para el `.exe` generado (queda embebido).
-- (Opcional) FFprobe para progreso exacto
-
-## Si FFmpeg no esta instalado
-
-La app incluye boton `Configurar FFmpeg...` para seleccionar manualmente `ffmpeg.exe`.
-La ruta queda guardada en `videosplitter.settings.json` junto al ejecutable.
+- Usa el `.ico` que encuentre en la raiz del proyecto.
+- Descarga FFmpeg si no existe en `third_party/ffmpeg`.
+- Inserta la version actual en los metadatos del `.exe`.
+- Genera `VideoSplitter.exe` en la carpeta raiz del proyecto.
 
 ## Configuracion persistente
 
 El archivo `videosplitter.settings.json` guarda:
 
-- Ruta de `ffmpeg.exe` y `ffprobe.exe`
+- Ruta de `ffmpeg.exe`
+- Ruta de `ffprobe.exe`
+- Version actual de la app
 - Modo de division seleccionado
 - Segundos por parte
 - Cantidad de partes iguales
-- Perfil de video y contenedor seleccionados
-- Carpeta de salida usada mas recientemente
+- Perfil de video
+- Contenedor de salida
+- Carpeta de salida mas reciente
+
+## Versionado
+
+El proyecto usa versionado semantico en formato `Vx.x.x`.
+
+Regla recomendada:
+
+- `patch`: correcciones, ajustes menores, documentacion o mejoras internas
+- `minor`: nuevas funcionalidades compatibles
+- `major`: cambios incompatibles o redisenos importantes
+
+## Release automatizada
+
+Se incluye el script `scripts/release.py` para que cada commit de entrega:
+
+- Incremente la version
+- Actualice la app y la documentacion base
+- Recompile `VideoSplitter.exe`
+- Cree el commit
+- Cree el tag Git
+- Haga push a `main`
+- Cree la Release en GitHub
+- Adjunte el `.exe` compilado a la release
+
+Ejemplos:
+
+```powershell
+python scripts/release.py "chore: release Vx.x.x"
+python scripts/release.py "feat: nueva funcionalidad" --level minor
+python scripts/release.py "feat!: cambio incompatible" --level major
+python scripts/release.py "docs: actualiza documentacion" --skip-build-exe
+```
+
+## Comandos manuales paso a paso
+
+Crear repo local:
+
+```powershell
+git init -b main
+```
+
+Agregar archivos:
+
+```powershell
+git add .
+```
+
+Crear commit:
+
+```powershell
+git commit -m "feat: mensaje descriptivo"
+```
+
+Crear repo remoto publico con GitHub CLI:
+
+```powershell
+gh repo create videosplitter --public --source=. --remote=origin
+```
+
+Subir rama principal:
+
+```powershell
+git push -u origin main
+```
+
+Crear tag de version:
+
+```powershell
+git tag -a v1.0.0 -m "Release V1.0.0"
+git push origin v1.0.0
+```
+
+Crear release en GitHub:
+
+```powershell
+gh release create v1.0.0 --title "V1.0.0" --generate-notes
+```
+
+## Buenas practicas del repositorio
+
+- Licencia Apache 2.0 incluida en `LICENSE`
+- CI basica en GitHub Actions para validar sintaxis
+- Dependabot configurado para revisar dependencias y workflows
+- `.gitignore` para excluir binarios y artefactos generados
+- Version unica centralizada en `app_metadata.py`
+
+## Licencia
+
+Este proyecto esta distribuido bajo Apache License 2.0. Consulta el archivo `LICENSE`.

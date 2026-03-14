@@ -1,9 +1,9 @@
 {
-	"app_version": "1.0.0",
-	"split_mode": "seconds",
-	"segment_seconds": 60,
-	"equal_parts_count": 2,
-	"video_profile": "short_9_16",
-	"container_format": "mp4",
-	"output_dir": ""
+  "app_version": "1.0.1",
+  "split_mode": "seconds",
+  "segment_seconds": 60,
+  "equal_parts_count": 2,
+  "video_profile": "short_9_16",
+  "container_format": "mp4",
+  "output_dir": ""
 }

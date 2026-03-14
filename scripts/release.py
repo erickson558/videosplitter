@@ -1,0 +1,156 @@
+"""Bump app version, commit, tag, push, and create a GitHub release."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+APP_METADATA_PATH = PROJECT_ROOT / "app_metadata.py"
+README_PATH = PROJECT_ROOT / "README.md"
+SETTINGS_PATH = PROJECT_ROOT / "videosplitter.settings.json"
+BUILD_SCRIPT_PATH = PROJECT_ROOT / "build_exe.py"
+EXE_PATH = PROJECT_ROOT / "VideoSplitter.exe"
+
+
+def run(command: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+
+def read_version() -> tuple[int, int, int]:
+    match = re.search(
+        r'^APP_VERSION\s*=\s*"(?P<version>\d+\.\d+\.\d+)"',
+        APP_METADATA_PATH.read_text(encoding="utf-8"),
+        flags=re.MULTILINE,
+    )
+    if not match:
+        raise RuntimeError("No se pudo leer APP_VERSION desde app_metadata.py")
+
+    version_text = match.group("version")
+    major, minor, patch = (int(part) for part in version_text.split("."))
+    return major, minor, patch
+
+
+def bump_version(current: tuple[int, int, int], level: str) -> tuple[int, int, int]:
+    major, minor, patch = current
+    if level == "major":
+        return major + 1, 0, 0
+    if level == "minor":
+        return major, minor + 1, 0
+    return major, minor, patch + 1
+
+
+def replace_single(pattern: str, replacement: str, content: str) -> str:
+    updated, count = re.subn(pattern, replacement, content, count=1, flags=re.MULTILINE)
+    if count != 1:
+        raise RuntimeError(f"No se pudo actualizar el patron: {pattern}")
+    return updated
+
+
+def update_version_files(version_text: str) -> None:
+    metadata = APP_METADATA_PATH.read_text(encoding="utf-8")
+    metadata = replace_single(
+        r'^APP_VERSION\s*=\s*"\d+\.\d+\.\d+"',
+        f'APP_VERSION = "{version_text}"',
+        metadata,
+    )
+    APP_METADATA_PATH.write_text(metadata, encoding="utf-8")
+
+    readme = README_PATH.read_text(encoding="utf-8")
+    readme = replace_single(
+        r'^# VideoSplitter V\d+\.\d+\.\d+',
+        f'# VideoSplitter V{version_text}',
+        readme,
+    )
+    README_PATH.write_text(readme, encoding="utf-8")
+
+    settings = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    settings["app_version"] = version_text
+    SETTINGS_PATH.write_text(json.dumps(settings, ensure_ascii=True, indent=2), encoding="utf-8")
+
+
+def git_has_changes() -> bool:
+    result = run(["git", "status", "--porcelain"])
+    return bool(result.stdout.strip())
+
+
+def ensure_clean_or_changes_present() -> None:
+    if not git_has_changes():
+        raise RuntimeError("No hay cambios para commitear.")
+
+
+def build_executable() -> None:
+    run([sys.executable, str(BUILD_SCRIPT_PATH)])
+
+
+def create_commit_and_release(message: str, version_text: str, attach_exe: bool) -> None:
+    tag_name = f"v{version_text}"
+    release_title = f"V{version_text}"
+
+    run(["git", "add", "-A"])
+    run(["git", "commit", "-m", message])
+    run(["git", "tag", "-a", tag_name, "-m", f"Release {release_title}"])
+    run(["git", "push", "origin", "main"])
+    run(["git", "push", "origin", tag_name])
+    command = [
+        "gh",
+        "release",
+        "create",
+        tag_name,
+        "--title",
+        release_title,
+        "--generate-notes",
+    ]
+    if attach_exe and EXE_PATH.exists():
+        command.append(str(EXE_PATH))
+    run(command)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Incrementa la version, crea commit, tag, push y release en GitHub."
+    )
+    parser.add_argument("message", help="Mensaje del commit de release")
+    parser.add_argument(
+        "--level",
+        choices=("patch", "minor", "major"),
+        default="patch",
+        help="Nivel de incremento semantico. Por defecto: patch.",
+    )
+    parser.add_argument(
+        "--skip-build-exe",
+        action="store_true",
+        help="No recompila ni adjunta VideoSplitter.exe a la release.",
+    )
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    ensure_clean_or_changes_present()
+
+    current = read_version()
+    next_version = bump_version(current, args.level)
+    next_version_text = ".".join(str(part) for part in next_version)
+
+    update_version_files(next_version_text)
+    if not args.skip_build_exe:
+        build_executable()
+    create_commit_and_release(args.message, next_version_text, attach_exe=not args.skip_build_exe)
+
+    print(f"Release completada: V{next_version_text}")
+
+
+if __name__ == "__main__":
+    main()
