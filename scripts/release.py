@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import json
 import re
 import subprocess
@@ -17,6 +18,16 @@ README_PATH = PROJECT_ROOT / "README.md"
 SETTINGS_PATH = PROJECT_ROOT / "videosplitter.settings.json"
 BUILD_SCRIPT_PATH = PROJECT_ROOT / "build_exe.py"
 EXE_PATH = PROJECT_ROOT / "VideoSplitter.exe"
+CHANGELOG_PATH = PROJECT_ROOT / "CHANGELOG.md"
+
+CHANGELOG_CATEGORIES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Features", ("feat",)),
+    ("Fixes", ("fix",)),
+    ("Documentation", ("docs",)),
+    ("Tests", ("test",)),
+    ("Build and CI", ("build", "ci")),
+    ("Maintenance", ("chore", "refactor", "perf", "style")),
+)
 
 
 def run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -39,6 +50,73 @@ def normalize_repo_url(raw_url: str) -> str:
     if normalized.startswith("git@github.com:"):
         normalized = f"https://github.com/{normalized.split(':', 1)[1]}"
     return normalized
+
+
+def classify_subject(subject: str) -> str:
+    lowered = subject.strip().lower()
+    for category, prefixes in CHANGELOG_CATEGORIES:
+        if any(lowered.startswith(f"{prefix}:") or lowered.startswith(f"{prefix}(") for prefix in prefixes):
+            return category
+    return "Other"
+
+
+def categorize_commit_subjects(subjects: list[str]) -> dict[str, list[str]]:
+    categories: dict[str, list[str]] = {name: [] for name, _ in CHANGELOG_CATEGORIES}
+    categories["Other"] = []
+
+    for subject in subjects:
+        categories[classify_subject(subject)].append(subject)
+
+    return {category: items for category, items in categories.items() if items}
+
+
+def render_categorized_subjects(categories: dict[str, list[str]]) -> str:
+    sections: list[str] = []
+    for category, items in categories.items():
+        sections.append(f"### {category}")
+        sections.extend(f"- {item}" for item in items)
+        sections.append("")
+    return "\n".join(sections).strip()
+
+
+def ensure_changelog_exists() -> None:
+    if CHANGELOG_PATH.exists():
+        return
+    CHANGELOG_PATH.write_text(
+        "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n",
+        encoding="utf-8",
+    )
+
+
+def update_changelog(version_text: str, previous_tag: str | None, release_message: str) -> None:
+    ensure_changelog_exists()
+    existing = CHANGELOG_PATH.read_text(encoding="utf-8")
+
+    subjects = commit_subjects_since(previous_tag)
+    if release_message not in subjects:
+        subjects.append(release_message)
+
+    categorized = categorize_commit_subjects(subjects)
+    categorized_markdown = render_categorized_subjects(categorized)
+
+    compare_line = ""
+    repo_url = repo_web_url()
+    if previous_tag and repo_url:
+        compare_line = f"- Compare: {repo_url}/compare/{previous_tag}...v{version_text}\n"
+
+    entry = (
+        f"## V{version_text} - {date.today().isoformat()}\n\n"
+        f"- Release message: {release_message}\n"
+        f"{compare_line}\n"
+        f"{categorized_markdown}\n\n"
+    )
+
+    if existing.startswith("# Changelog"):
+        head, _, tail = existing.partition("\n\n")
+        updated = f"{head}\n\n{entry}{tail.lstrip()}"
+    else:
+        updated = f"# Changelog\n\n{entry}{existing}"
+    CHANGELOG_PATH.write_text(updated, encoding="utf-8")
 
 
 def read_version() -> tuple[int, int, int]:
@@ -144,6 +222,8 @@ def build_release_notes(
 
     file_lines = "\n".join(f"- `{file_path}`" for file_path in changed_files[:10]) or "- No file summary available"
     commit_lines = "\n".join(f"- {subject}" for subject in commit_subjects) or f"- {release_message}"
+    categorized = categorize_commit_subjects(commit_subjects or [release_message])
+    categorized_lines = render_categorized_subjects(categorized)
 
     return (
         f"# VideoSplitter V{version_text}\n\n"
@@ -154,6 +234,8 @@ def build_release_notes(
         f"{compare_line}\n"
         f"## Included Commits\n"
         f"{commit_lines}\n\n"
+        f"## Change Types\n"
+        f"{categorized_lines}\n\n"
         f"## Key Files\n"
         f"{file_lines}\n\n"
         f"## Notes\n"
@@ -241,6 +323,7 @@ def main() -> None:
     next_version_text = ".".join(str(part) for part in next_version)
 
     update_version_files(next_version_text)
+    update_changelog(next_version_text, previous_tag, args.message)
     if not args.skip_build_exe:
         build_executable()
     create_commit_and_release(

@@ -203,28 +203,31 @@ class VideoSplitterService:
 
         error_lines: list[str] = []
 
-        for raw_line in process.stdout:
-            line = raw_line.strip()
-            if not line:
-                continue
-
-            if "=" not in line:
-                error_lines.append(line)
-                continue
-
-            key, value = line.split("=", 1)
-            if key in {"out_time_ms", "out_time_us", "out_time"} and duration_seconds and progress_callback:
-                current_seconds = self._progress_seconds(key, value)
-                if current_seconds is None:
+        try:
+            for raw_line in process.stdout:
+                line = raw_line.strip()
+                if not line:
                     continue
-                percent = min((current_seconds / duration_seconds) * 100.0, 99.9)
-                progress_callback(
-                    percent,
-                    f"Procesando: {self._format_seconds(current_seconds)} / "
-                    f"{self._format_seconds(duration_seconds)}",
-                )
-            elif key == "progress" and value == "end" and progress_callback:
-                progress_callback(99.9, "Finalizando archivos de salida...")
+
+                if "=" not in line:
+                    error_lines.append(line)
+                    continue
+
+                key, value = line.split("=", 1)
+                if key in {"out_time_ms", "out_time_us", "out_time"} and duration_seconds and progress_callback:
+                    current_seconds = self._progress_seconds(key, value)
+                    if current_seconds is None:
+                        continue
+                    percent = min((current_seconds / duration_seconds) * 100.0, 99.9)
+                    progress_callback(
+                        percent,
+                        f"Procesando: {self._format_seconds(current_seconds)} / "
+                        f"{self._format_seconds(duration_seconds)}",
+                    )
+                elif key == "progress" and value == "end" and progress_callback:
+                    progress_callback(99.9, "Finalizando archivos de salida...")
+        finally:
+            process.stdout.close()
 
         return_code = process.wait()
         if return_code != 0:

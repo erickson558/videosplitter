@@ -1,4 +1,9 @@
-# VideoSplitter V1.0.3
+# VideoSplitter V1.0.4
+
+[![CI](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml/badge.svg)](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/erickson558/videosplitter?label=release)](https://github.com/erickson558/videosplitter/releases)
+[![License](https://img.shields.io/github/license/erickson558/videosplitter)](https://github.com/erickson558/videosplitter/blob/main/LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/downloads/)
 
 ![VideoSplitter banner](docs/assets/banner.svg)
 
@@ -58,9 +63,16 @@ Actualmente la app no requiere dependencias externas para ejecutar el codigo fue
 ## Tests automaticos
 
 Los tests unitarios cubren validacion de configuracion, persistencia de settings, generacion de comandos FFmpeg y construccion de release notes.
+Tambien se incluye un test de integracion real que genera un video sintentico corto con FFmpeg y valida el split de extremo a extremo.
 
 ```powershell
 python -m unittest discover -s tests -v
+```
+
+Para ejecutar solo el test de integracion:
+
+```powershell
+python -m unittest tests.test_integration_split -v
 ```
 
 ## Ejecutar en desarrollo
@@ -119,6 +131,7 @@ Se incluye el script `scripts/release.py` para que cada commit de entrega:
 - Cree la Release en GitHub
 - Adjunte el `.exe` compilado a la release
 - Genere Release Notes personalizadas con highlights, commits y archivos clave
+- Actualice `CHANGELOG.md` con un resumen por tipo de cambio (`feat`, `fix`, `docs`, etc.)
 
 Ejemplos:
 
@@ -178,6 +191,7 @@ gh release create v1.0.0 --title "V1.0.0" --notes-file release-notes.md
 
 - Licencia Apache 2.0 incluida en `LICENSE`
 - CI en GitHub Actions para validar sintaxis y tests unitarios
+- CI en GitHub Actions con FFmpeg para validar unit tests e integration test
 - Dependabot configurado para revisar dependencias y workflows
 - `.gitignore` para excluir binarios y artefactos generados
 - Version unica centralizada en `app_metadata.py`
