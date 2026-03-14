@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.pyo
+
+.venv/
+env/
+
+build/
+dist/
+VideoSplitter.spec
+
+VideoSplitter.exe
+
+third_party/ffmpeg/*.exe
