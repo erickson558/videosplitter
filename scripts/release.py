@@ -142,7 +142,7 @@ def build_release_notes(
     if previous_tag and repo_url:
         compare_line = f"- Compare: {repo_url}/compare/{previous_tag}...{tag_name}\n"
 
-    file_lines = "\n".join(f"- {file_path}" for file_path in changed_files[:10]) or "- No file summary available"
+    file_lines = "\n".join(f"- `{file_path}`" for file_path in changed_files[:10]) or "- No file summary available"
     commit_lines = "\n".join(f"- {subject}" for subject in commit_subjects) or f"- {release_message}"
 
     return (

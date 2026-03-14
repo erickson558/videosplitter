@@ -1,4 +1,4 @@
-# VideoSplitter V1.0.2
+# VideoSplitter V1.0.3
 
 ![VideoSplitter banner](docs/assets/banner.svg)
 
