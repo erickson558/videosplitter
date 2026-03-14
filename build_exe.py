@@ -25,15 +25,15 @@ DOWNLOAD_URLS = (
 
 
 def _version_tuple() -> tuple[int, int, int, int]:
-        parts = [int(part) for part in APP_VERSION.split(".")]
-        while len(parts) < 4:
-                parts.append(0)
-        return tuple(parts[:4])
+    parts = [int(part) for part in APP_VERSION.split(".")]
+    while len(parts) < 4:
+        parts.append(0)
+    return tuple(parts[:4])
 
 
 def _version_file_contents() -> str:
-        major, minor, patch, build = _version_tuple()
-        return f"""VSVersionInfo(
+    major, minor, patch, build = _version_tuple()
+    return f"""VSVersionInfo(
     ffi=FixedFileInfo(
         filevers=({major}, {minor}, {patch}, {build}),
         prodvers=({major}, {minor}, {patch}, {build}),
@@ -59,6 +59,19 @@ def _version_file_contents() -> str:
         VarFileInfo([VarStruct('Translation', [1033, 1200])])
     ]
 )"""
+
+
+def _replace_output_executable(source_exe: Path, target_exe: Path) -> None:
+    target_exe.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        if target_exe.exists():
+            target_exe.unlink()
+        shutil.move(str(source_exe), str(target_exe))
+    except PermissionError as exc:
+        raise RuntimeError(
+            f"No se pudo reemplazar {target_exe.name}. Cierra la aplicacion si esta abierta y reintenta."
+        ) from exc
 
 
 def _ensure_icon() -> Path:
@@ -171,6 +184,7 @@ def _ensure_ffmpeg_binaries() -> tuple[Path, Path]:
 
 def _build(icon_path: Path, ffmpeg_path: Path, ffprobe_path: Path) -> None:
     work_path = Path(tempfile.mkdtemp(prefix="videosplitter_build_"))
+    dist_path = work_path / "dist"
     version_file = work_path / "version_info.txt"
     binary_separator = os.pathsep
     command = [
@@ -192,7 +206,7 @@ def _build(icon_path: Path, ffmpeg_path: Path, ffprobe_path: Path) -> None:
         "--add-binary",
         f"{ffprobe_path}{binary_separator}.",
         "--distpath",
-        str(PROJECT_ROOT),
+        str(dist_path),
         "--workpath",
         str(work_path),
         "--specpath",
@@ -202,6 +216,10 @@ def _build(icon_path: Path, ffmpeg_path: Path, ffprobe_path: Path) -> None:
     try:
         version_file.write_text(_version_file_contents(), encoding="utf-8")
         subprocess.run(command, check=True)
+        built_exe = dist_path / f"{APP_NAME}.exe"
+        if not built_exe.exists():
+            raise FileNotFoundError(f"No se encontro el ejecutable generado en {built_exe}")
+        _replace_output_executable(built_exe, PROJECT_ROOT / f"{APP_NAME}.exe")
     finally:
         shutil.rmtree(work_path, ignore_errors=True)
 

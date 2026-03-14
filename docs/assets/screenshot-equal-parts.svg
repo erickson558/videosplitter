@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">VideoSplitter equal parts mode</title>
+  <desc id="desc">Captura ilustrativa del modo para dividir un video en partes iguales.</desc>
+  <rect width="1280" height="760" fill="#f4f8ea"/>
+  <rect x="70" y="50" rx="28" ry="28" width="1140" height="660" fill="#102233"/>
+  <rect x="98" y="88" rx="24" ry="24" width="1084" height="584" fill="#fcfdf9"/>
+  <rect x="98" y="88" rx="24" ry="24" width="1084" height="62" fill="#1d5e54"/>
+  <text x="140" y="126" fill="#f3faf5" font-size="26" font-family="Segoe UI, Arial, sans-serif" font-weight="700">VideoSplitter V1.0.1</text>
+
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="146" y="216" fill="#173447" font-size="24" font-weight="700">Modo de division</text>
+    <rect x="330" y="186" width="170" height="42" rx="12" fill="#ffffff" stroke="#8fb8b0" stroke-width="2"/>
+    <text x="415" y="213" text-anchor="middle" fill="#173447" font-size="20" font-weight="700">Por segundos</text>
+    <rect x="520" y="186" width="190" height="42" rx="12" fill="#7fd6a3"/>
+    <text x="615" y="213" text-anchor="middle" fill="#123228" font-size="20" font-weight="800">Partes iguales</text>
+
+    <text x="146" y="298" fill="#173447" font-size="24" font-weight="700">Cantidad de partes</text>
+    <rect x="330" y="268" width="120" height="42" rx="12" fill="#ffffff" stroke="#8fb8b0" stroke-width="2"/>
+    <text x="390" y="295" text-anchor="middle" fill="#173447" font-size="22" font-weight="700">5</text>
+
+    <text x="146" y="382" fill="#173447" font-size="24" font-weight="700">Vista previa de cortes</text>
+    <rect x="330" y="346" width="730" height="28" rx="14" fill="#dfece5"/>
+    <line x1="476" y1="346" x2="476" y2="374" stroke="#1d5e54" stroke-width="4"/>
+    <line x1="622" y1="346" x2="622" y2="374" stroke="#1d5e54" stroke-width="4"/>
+    <line x1="768" y1="346" x2="768" y2="374" stroke="#1d5e54" stroke-width="4"/>
+    <line x1="914" y1="346" x2="914" y2="374" stroke="#1d5e54" stroke-width="4"/>
+    <text x="330" y="420" fill="#35586a" font-size="18">0%</text>
+    <text x="1060" y="420" text-anchor="end" fill="#35586a" font-size="18">100%</text>
+
+    <rect x="146" y="510" width="280" height="104" rx="20" fill="#e6f5eb" stroke="#b7dcca" stroke-width="2"/>
+    <text x="172" y="550" fill="#173447" font-size="18" font-weight="700">Beneficio</text>
+    <text x="172" y="585" fill="#35586a" font-size="18">Cada segmento queda con duracion</text>
+    <text x="172" y="610" fill="#35586a" font-size="18">uniforme segun el total del video.</text>
+
+    <rect x="860" y="572" width="200" height="46" rx="16" fill="#1d5e54"/>
+    <text x="960" y="602" text-anchor="middle" fill="#f5fbfe" font-size="22" font-weight="800">Configurar FFmpeg</text>
+    <rect x="640" y="572" width="190" height="46" rx="16" fill="#f6b454"/>
+    <text x="735" y="602" text-anchor="middle" fill="#102031" font-size="22" font-weight="800">Dividir video</text>
+  </g>
+</svg>

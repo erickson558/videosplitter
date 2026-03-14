@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">VideoSplitter main screen</title>
+  <desc id="desc">Captura ilustrativa de la pantalla principal con division por segundos.</desc>
+  <rect width="1280" height="760" fill="#e9f4f8"/>
+  <rect x="60" y="48" rx="28" ry="28" width="1160" height="664" fill="#0f2233"/>
+  <rect x="88" y="86" rx="22" ry="22" width="1104" height="588" fill="#f7fbfd"/>
+  <rect x="88" y="86" rx="22" ry="22" width="1104" height="62" fill="#14334b"/>
+  <circle cx="124" cy="117" r="8" fill="#ff7b72"/>
+  <circle cx="150" cy="117" r="8" fill="#ffd166"/>
+  <circle cx="176" cy="117" r="8" fill="#4dd0a8"/>
+  <text x="214" y="125" fill="#eef7fb" font-size="26" font-family="Segoe UI, Arial, sans-serif" font-weight="700">VideoSplitter V1.0.1</text>
+
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="132" y="196" fill="#173447" font-size="24" font-weight="700">Video</text>
+    <rect x="278" y="166" width="660" height="42" rx="12" fill="#ffffff" stroke="#98bfcc" stroke-width="2"/>
+    <rect x="964" y="166" width="154" height="42" rx="12" fill="#173447"/>
+    <text x="1041" y="193" text-anchor="middle" fill="#f5fbfe" font-size="20" font-weight="700">Buscar...</text>
+
+    <text x="132" y="264" fill="#173447" font-size="24" font-weight="700">Salida</text>
+    <rect x="278" y="234" width="660" height="42" rx="12" fill="#ffffff" stroke="#98bfcc" stroke-width="2"/>
+    <rect x="964" y="234" width="154" height="42" rx="12" fill="#173447"/>
+    <text x="1041" y="261" text-anchor="middle" fill="#f5fbfe" font-size="20" font-weight="700">Carpeta...</text>
+
+    <text x="132" y="332" fill="#173447" font-size="24" font-weight="700">Modo de division</text>
+    <rect x="278" y="302" width="164" height="42" rx="12" fill="#7bcde4"/>
+    <text x="360" y="329" text-anchor="middle" fill="#102031" font-size="20" font-weight="800">Por segundos</text>
+    <rect x="462" y="302" width="182" height="42" rx="12" fill="#ffffff" stroke="#98bfcc" stroke-width="2"/>
+    <text x="553" y="329" text-anchor="middle" fill="#173447" font-size="20" font-weight="700">Partes iguales</text>
+
+    <text x="132" y="400" fill="#173447" font-size="24" font-weight="700">Segundos por parte</text>
+    <rect x="278" y="370" width="120" height="42" rx="12" fill="#ffffff" stroke="#98bfcc" stroke-width="2"/>
+    <text x="338" y="397" text-anchor="middle" fill="#173447" font-size="22" font-weight="700">60</text>
+
+    <text x="132" y="476" fill="#173447" font-size="24" font-weight="700">Perfil y contenedor</text>
+    <rect x="278" y="438" width="300" height="38" rx="10" fill="#173447" opacity="0.1"/>
+    <rect x="278" y="490" width="150" height="38" rx="10" fill="#f6b454"/>
+    <text x="353" y="515" text-anchor="middle" fill="#102031" font-size="18" font-weight="800">Short 9:16</text>
+    <rect x="448" y="490" width="120" height="38" rx="10" fill="#ffffff" stroke="#98bfcc" stroke-width="2"/>
+    <text x="508" y="515" text-anchor="middle" fill="#173447" font-size="18" font-weight="700">MP4</text>
+
+    <rect x="132" y="592" width="710" height="18" rx="9" fill="#dcecf2"/>
+    <rect x="132" y="592" width="500" height="18" rx="9" fill="#4dd0a8"/>
+    <text x="132" y="646" fill="#173447" font-size="20">Procesando: 00:01:48 / 00:03:36</text>
+
+    <rect x="860" y="588" width="258" height="50" rx="16" fill="#f6b454"/>
+    <text x="989" y="620" text-anchor="middle" fill="#102031" font-size="24" font-weight="800">Dividir video</text>
+  </g>
+</svg>

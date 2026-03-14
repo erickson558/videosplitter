@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -19,13 +20,25 @@ EXE_PATH = PROJECT_ROOT / "VideoSplitter.exe"
 
 
 def run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    result = subprocess.run(
         command,
         cwd=PROJECT_ROOT,
         text=True,
         capture_output=True,
-        check=True,
     )
+    if result.returncode != 0:
+        details = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
+        raise RuntimeError(f"Comando fallido: {' '.join(command)}\n{details}".strip())
+    return result
+
+
+def normalize_repo_url(raw_url: str) -> str:
+    normalized = raw_url.strip()
+    if normalized.endswith(".git"):
+        normalized = normalized[:-4]
+    if normalized.startswith("git@github.com:"):
+        normalized = f"https://github.com/{normalized.split(':', 1)[1]}"
+    return normalized
 
 
 def read_version() -> tuple[int, int, int]:
@@ -85,6 +98,70 @@ def git_has_changes() -> bool:
     return bool(result.stdout.strip())
 
 
+def latest_tag() -> str | None:
+    result = run(["git", "tag", "--sort=-v:refname"])
+    tags = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return tags[0] if tags else None
+
+
+def repo_web_url() -> str | None:
+    result = run(["git", "config", "--get", "remote.origin.url"])
+    value = result.stdout.strip()
+    if not value:
+        return None
+    return normalize_repo_url(value)
+
+
+def changed_files_for_head() -> list[str]:
+    result = run(["git", "diff-tree", "--no-commit-id", "--name-only", "--root", "-r", "HEAD"])
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def commit_subjects_since(previous_tag: str | None) -> list[str]:
+    command = ["git", "log", "--pretty=format:%s"]
+    if previous_tag:
+        command.append(f"{previous_tag}..HEAD")
+    else:
+        command.extend(["-n", "1", "HEAD"])
+    result = run(command)
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def build_release_notes(
+    *,
+    version_text: str,
+    release_level: str,
+    release_message: str,
+    previous_tag: str | None,
+    changed_files: list[str],
+    commit_subjects: list[str],
+    repo_url: str | None,
+) -> str:
+    tag_name = f"v{version_text}"
+    compare_line = ""
+    if previous_tag and repo_url:
+        compare_line = f"- Compare: {repo_url}/compare/{previous_tag}...{tag_name}\n"
+
+    file_lines = "\n".join(f"- {file_path}" for file_path in changed_files[:10]) or "- No file summary available"
+    commit_lines = "\n".join(f"- {subject}" for subject in commit_subjects) or f"- {release_message}"
+
+    return (
+        f"# VideoSplitter V{version_text}\n\n"
+        f"## Highlights\n"
+        f"- Release type: {release_level}\n"
+        f"- Main change: {release_message}\n"
+        f"- Asset included: VideoSplitter.exe\n"
+        f"{compare_line}\n"
+        f"## Included Commits\n"
+        f"{commit_lines}\n\n"
+        f"## Key Files\n"
+        f"{file_lines}\n\n"
+        f"## Notes\n"
+        f"- App, tag and settings version are aligned to V{version_text}.\n"
+        f"- Desktop executable was rebuilt for this release.\n"
+    )
+
+
 def ensure_clean_or_changes_present() -> None:
     if not git_has_changes():
         raise RuntimeError("No hay cambios para commitear.")
@@ -94,7 +171,13 @@ def build_executable() -> None:
     run([sys.executable, str(BUILD_SCRIPT_PATH)])
 
 
-def create_commit_and_release(message: str, version_text: str, attach_exe: bool) -> None:
+def create_commit_and_release(
+    message: str,
+    version_text: str,
+    release_level: str,
+    previous_tag: str | None,
+    attach_exe: bool,
+) -> None:
     tag_name = f"v{version_text}"
     release_title = f"V{version_text}"
 
@@ -103,6 +186,15 @@ def create_commit_and_release(message: str, version_text: str, attach_exe: bool)
     run(["git", "tag", "-a", tag_name, "-m", f"Release {release_title}"])
     run(["git", "push", "origin", "main"])
     run(["git", "push", "origin", tag_name])
+    release_notes = build_release_notes(
+        version_text=version_text,
+        release_level=release_level,
+        release_message=message,
+        previous_tag=previous_tag,
+        changed_files=changed_files_for_head(),
+        commit_subjects=commit_subjects_since(previous_tag),
+        repo_url=repo_web_url(),
+    )
     command = [
         "gh",
         "release",
@@ -110,11 +202,14 @@ def create_commit_and_release(message: str, version_text: str, attach_exe: bool)
         tag_name,
         "--title",
         release_title,
-        "--generate-notes",
     ]
-    if attach_exe and EXE_PATH.exists():
-        command.append(str(EXE_PATH))
-    run(command)
+    with tempfile.TemporaryDirectory(prefix="videosplitter_release_notes_") as temp_dir:
+        notes_path = Path(temp_dir) / "release_notes.md"
+        notes_path.write_text(release_notes, encoding="utf-8")
+        command.extend(["--notes-file", str(notes_path)])
+        if attach_exe and EXE_PATH.exists():
+            command.append(str(EXE_PATH))
+        run(command)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -139,6 +234,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     ensure_clean_or_changes_present()
+    previous_tag = latest_tag()
 
     current = read_version()
     next_version = bump_version(current, args.level)
@@ -147,7 +243,13 @@ def main() -> None:
     update_version_files(next_version_text)
     if not args.skip_build_exe:
         build_executable()
-    create_commit_and_release(args.message, next_version_text, attach_exe=not args.skip_build_exe)
+    create_commit_and_release(
+        args.message,
+        next_version_text,
+        release_level=args.level,
+        previous_tag=previous_tag,
+        attach_exe=not args.skip_build_exe,
+    )
 
     print(f"Release completada: V{next_version_text}")
 

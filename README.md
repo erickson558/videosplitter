@@ -1,6 +1,18 @@
-# VideoSplitter V1.0.1
+# VideoSplitter V1.0.2
+
+![VideoSplitter banner](docs/assets/banner.svg)
 
 Aplicacion de escritorio en Python para dividir videos en segmentos numerados, ya sea por duracion fija o en partes iguales, con salida en MP4, MKV o MOV y perfiles listos para Shorts o video horizontal.
+
+## Vista del producto
+
+### Pantalla principal
+
+![Pantalla principal](docs/assets/screenshot-main.svg)
+
+### Modo partes iguales
+
+![Modo partes iguales](docs/assets/screenshot-equal-parts.svg)
 
 ## Que hace el programa
 
@@ -42,6 +54,14 @@ pip install -r requirements-build.txt
 ```
 
 Actualmente la app no requiere dependencias externas para ejecutar el codigo fuente fuera de las herramientas de build.
+
+## Tests automaticos
+
+Los tests unitarios cubren validacion de configuracion, persistencia de settings, generacion de comandos FFmpeg y construccion de release notes.
+
+```powershell
+python -m unittest discover -s tests -v
+```
 
 ## Ejecutar en desarrollo
 
@@ -98,6 +118,7 @@ Se incluye el script `scripts/release.py` para que cada commit de entrega:
 - Haga push a `main`
 - Cree la Release en GitHub
 - Adjunte el `.exe` compilado a la release
+- Genere Release Notes personalizadas con highlights, commits y archivos clave
 
 Ejemplos:
 
@@ -150,16 +171,17 @@ git push origin v1.0.0
 Crear release en GitHub:
 
 ```powershell
-gh release create v1.0.0 --title "V1.0.0" --generate-notes
+gh release create v1.0.0 --title "V1.0.0" --notes-file release-notes.md
 ```
 
 ## Buenas practicas del repositorio
 
 - Licencia Apache 2.0 incluida en `LICENSE`
-- CI basica en GitHub Actions para validar sintaxis
+- CI en GitHub Actions para validar sintaxis y tests unitarios
 - Dependabot configurado para revisar dependencias y workflows
 - `.gitignore` para excluir binarios y artefactos generados
 - Version unica centralizada en `app_metadata.py`
+- Assets visuales en `docs/assets/` para documentacion del producto
 
 ## Licencia
 

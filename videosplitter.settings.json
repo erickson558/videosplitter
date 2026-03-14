@@ -1,8 +1,8 @@
 {
-  "app_version": "1.0.1",
-  "split_mode": "seconds",
+  "app_version": "1.0.2",
+  "split_mode": "equal_parts",
   "segment_seconds": 60,
-  "equal_parts_count": 2,
+  "equal_parts_count": 3,
   "video_profile": "short_9_16",
   "container_format": "mp4",
   "output_dir": ""
