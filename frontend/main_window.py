@@ -61,8 +61,6 @@ class VideoSplitterApp:
         self.processing_device_var = tk.StringVar(
             value=str(saved_ui_settings.get("processing_device", DEFAULT_PROCESSING_DEVICE))
         )
-        self.status_var = tk.StringVar(value=self._initial_status_text())
-        self.progress_var = tk.DoubleVar(value=0.0)
 
         self._events: queue.Queue[tuple[str, object]] = queue.Queue()
         self._worker: threading.Thread | None = None
@@ -72,6 +70,9 @@ class VideoSplitterApp:
         self._processing_label_to_value: dict[str, str] = {}
         self._processing_value_to_label: dict[str, str] = {}
         self._initialize_processing_options()
+
+        self.status_var = tk.StringVar(value=self._initial_status_text())
+        self.progress_var = tk.DoubleVar(value=0.0)
 
         self._build_layout()
         self.root.after(self._POLL_INTERVAL_MS, self._flush_events)

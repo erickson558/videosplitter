@@ -1,5 +1,13 @@
 # Changelog
 
+## V1.1.2 - 2026-03-16
+
+- Release message: fix: initialize processing device lookup before status_var in main window
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.1.1...v1.1.2
+
+### Fixes
+- fix: move _processing_value_to_label initialization before status_var creation to resolve AttributeError on startup
+
 ## V1.1.1 - 2026-03-16
 
 - Release message: build: compile release exe and expand documentation to project best practices
