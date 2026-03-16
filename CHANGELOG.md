@@ -1,5 +1,14 @@
 # Changelog
 
+## V1.1.3 - 2026-03-16
+
+- Release message: fix: harden processing device label initialization during app startup
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.1.2...v1.1.3
+
+### Fixes
+- fix: make processing device label resolution safe even if the UI option dictionaries are not initialized yet
+- fix: validate startup path by instantiating the Tkinter app before release
+
 ## V1.1.2 - 2026-03-16
 
 - Release message: fix: initialize processing device lookup before status_var in main window

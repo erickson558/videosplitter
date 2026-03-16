@@ -251,10 +251,13 @@ class VideoSplitterApp:
         return f"{video_profile.label} + {container.label}"
 
     def _selected_processing_label(self) -> str:
-        return self._processing_value_to_label.get(
-            self.processing_device_var.get(),
-            self._processing_value_to_label[DEFAULT_PROCESSING_DEVICE],
+        processing_value_to_label = getattr(self, "_processing_value_to_label", {})
+        selected_value = self.processing_device_var.get().strip() or DEFAULT_PROCESSING_DEVICE
+        default_label = processing_value_to_label.get(
+            DEFAULT_PROCESSING_DEVICE,
+            "Automatico (GPU si existe, sino CPU)",
         )
+        return processing_value_to_label.get(selected_value, default_label)
 
     def _on_format_changed(self) -> None:
         if self._worker and self._worker.is_alive():
