@@ -1,5 +1,5 @@
 {
-  "app_version": "1.1.0",
+  "app_version": "1.1.1",
   "split_mode": "equal_parts",
   "segment_seconds": 60,
   "equal_parts_count": 3,
