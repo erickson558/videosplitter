@@ -10,7 +10,15 @@ from typing import Callable
 
 from .errors import FFmpegBinaryNotFoundError, SplitExecutionError
 from .ffmpeg_locator import locate_ffmpeg, locate_ffprobe
-from .models import EQUAL_PARTS_SPLIT_MODE, SplitJobConfig
+from .models import (
+    EQUAL_PARTS_SPLIT_MODE,
+    PROCESSING_DEVICE_AUTO,
+    PROCESSING_DEVICE_CPU,
+    PROCESSING_DEVICE_GPU_ALL,
+    PROCESSING_DEVICE_GPU_AMF,
+    PROCESSING_DEVICE_GPU_QSV,
+    SplitJobConfig,
+)
 
 ProgressCallback = Callable[[float | None, str], None]
 
@@ -47,6 +55,43 @@ class VideoSplitterService:
                 "No se encontro FFmpeg. Instalalo o define la variable FFMPEG_PATH."
             )
 
+        self._available_h264_encoders = self._detect_available_h264_encoders()
+        self._preferred_video_encoder = self._select_preferred_encoder(self._available_h264_encoders)
+
+    @classmethod
+    def detect_processing_options(cls, ffmpeg_path: Path | None = None) -> list[tuple[str, str]]:
+        options: list[tuple[str, str]] = [
+            (PROCESSING_DEVICE_AUTO, "Automatico (GPU si existe, sino CPU)"),
+            (PROCESSING_DEVICE_CPU, "Solo CPU"),
+        ]
+
+        resolved_ffmpeg = ffmpeg_path or locate_ffmpeg()
+        if resolved_ffmpeg is None:
+            return options
+
+        encoders_output = cls._read_encoders_output(resolved_ffmpeg)
+        if not encoders_output:
+            return options
+
+        available = cls._available_h264_encoders_from_output(encoders_output)
+
+        if "h264_nvenc" in available:
+            nvidia_gpus = cls._detect_nvidia_gpus()
+            if nvidia_gpus:
+                options.append((PROCESSING_DEVICE_GPU_ALL, f"GPU NVIDIA (todas: {len(nvidia_gpus)})"))
+                for index, name in nvidia_gpus:
+                    options.append((f"gpu_{index}", f"GPU NVIDIA {index}: {name}"))
+            else:
+                options.append((PROCESSING_DEVICE_GPU_ALL, "GPU NVIDIA (auto)"))
+
+        if "h264_qsv" in available:
+            options.append((PROCESSING_DEVICE_GPU_QSV, "GPU Intel QSV"))
+
+        if "h264_amf" in available:
+            options.append((PROCESSING_DEVICE_GPU_AMF, "GPU AMD AMF"))
+
+        return options
+
     def split_video(
         self,
         config: SplitJobConfig,
@@ -65,8 +110,35 @@ class VideoSplitterService:
             validated.output_dir
             / f"{validated.safe_output_stem} Parte %d{validated.output_extension}"
         )
-        command = self._build_command(validated, output_pattern, split_points)
-        self._run_ffmpeg(command, duration_seconds, progress_callback)
+        selected_encoder = self._resolve_video_encoder(validated.processing_device)
+        command = self._build_command(
+            validated,
+            output_pattern,
+            split_points,
+            video_encoder=selected_encoder,
+        )
+        self._remove_existing_output_parts(validated)
+
+        try:
+            self._run_ffmpeg(command, duration_seconds, progress_callback)
+        except SplitExecutionError:
+            if selected_encoder == "libx264":
+                raise
+
+            if progress_callback:
+                progress_callback(
+                    None,
+                    "Aceleracion por GPU no disponible en tiempo de ejecucion. Reintentando con CPU...",
+                )
+
+            self._remove_existing_output_parts(validated)
+            cpu_command = self._build_command(
+                validated,
+                output_pattern,
+                split_points,
+                video_encoder="libx264",
+            )
+            self._run_ffmpeg(cpu_command, duration_seconds, progress_callback)
 
         output_parts = self._collect_output_parts(validated)
         if not output_parts:
@@ -82,10 +154,12 @@ class VideoSplitterService:
         config: SplitJobConfig,
         output_pattern: Path,
         split_points: list[float] | None,
+        video_encoder: str | None = None,
     ) -> list[str]:
         profile = config.output_profile
         container = config.container_profile
         gop = profile.fps * 2
+        selected_encoder = video_encoder or self._resolve_video_encoder(config.processing_device)
 
         command = [
             str(self.ffmpeg_path),
@@ -108,18 +182,12 @@ class VideoSplitterService:
             )
             command.extend(["-vf", video_filter])
 
+        command.extend(["-r", str(profile.fps)])
+        command.extend(self._video_encoder_args(selected_encoder, config.processing_device))
         command.extend(
             [
-                "-r",
-                str(profile.fps),
-                "-c:v",
-                "libx264",
                 "-pix_fmt",
                 "yuv420p",
-                "-preset",
-                "medium",
-                "-crf",
-                "20",
                 "-c:a",
                 "aac",
                 "-b:a",
@@ -162,6 +230,124 @@ class VideoSplitterService:
 
         command.extend(["-progress", "pipe:1", "-nostats", str(output_pattern)])
         return command
+
+    def _detect_available_h264_encoders(self) -> set[str]:
+        output = self._read_encoders_output(self.ffmpeg_path)
+        if not output:
+            return set()
+        return self._available_h264_encoders_from_output(output)
+
+    @staticmethod
+    def _read_encoders_output(ffmpeg_path: Path) -> str:
+        command = [
+            str(ffmpeg_path),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-encoders",
+        ]
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                **_hidden_process_kwargs(),
+            )
+        except OSError:
+            return ""
+        if result.returncode != 0:
+            return ""
+        return result.stdout
+
+    @staticmethod
+    def _available_h264_encoders_from_output(encoders_output: str) -> set[str]:
+        normalized = encoders_output.lower()
+        found: set[str] = set()
+        for encoder in ("h264_nvenc", "h264_qsv", "h264_amf", "libx264"):
+            if re.search(rf"\b{encoder}\b", normalized):
+                found.add(encoder)
+        return found
+
+    @staticmethod
+    def _select_preferred_encoder(available_encoders: set[str]) -> str:
+        for encoder in ("h264_nvenc", "h264_qsv", "h264_amf"):
+            if encoder in available_encoders:
+                return encoder
+        return "libx264"
+
+    @staticmethod
+    def _select_video_encoder(encoders_output: str) -> str:
+        available = VideoSplitterService._available_h264_encoders_from_output(encoders_output)
+        return VideoSplitterService._select_preferred_encoder(available)
+
+    def _resolve_video_encoder(self, processing_device: str) -> str:
+        if processing_device == PROCESSING_DEVICE_CPU:
+            return "libx264"
+
+        if processing_device.startswith("gpu_"):
+            if processing_device == PROCESSING_DEVICE_GPU_QSV:
+                return "h264_qsv" if "h264_qsv" in self._available_h264_encoders else "libx264"
+            if processing_device == PROCESSING_DEVICE_GPU_AMF:
+                return "h264_amf" if "h264_amf" in self._available_h264_encoders else "libx264"
+            return "h264_nvenc" if "h264_nvenc" in self._available_h264_encoders else self._preferred_video_encoder
+
+        if processing_device == PROCESSING_DEVICE_AUTO:
+            return self._preferred_video_encoder
+
+        return "libx264"
+
+    @staticmethod
+    def _video_encoder_args(video_encoder: str, processing_device: str) -> list[str]:
+        if video_encoder == "h264_nvenc":
+            args = ["-c:v", "h264_nvenc", "-preset", "p5", "-cq", "20"]
+            if processing_device.startswith("gpu_") and processing_device not in {
+                PROCESSING_DEVICE_GPU_ALL,
+                PROCESSING_DEVICE_GPU_QSV,
+                PROCESSING_DEVICE_GPU_AMF,
+            }:
+                gpu_index = processing_device[4:]
+                if gpu_index.isdigit():
+                    args.extend(["-gpu", gpu_index])
+            return args
+        if video_encoder == "h264_qsv":
+            return ["-c:v", "h264_qsv", "-global_quality", "23"]
+        if video_encoder == "h264_amf":
+            return ["-c:v", "h264_amf", "-quality", "balanced"]
+        return ["-c:v", "libx264", "-preset", "medium", "-crf", "20"]
+
+    @staticmethod
+    def _detect_nvidia_gpus() -> list[tuple[int, str]]:
+        try:
+            result = subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=index,name",
+                    "--format=csv,noheader",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                **_hidden_process_kwargs(),
+            )
+        except OSError:
+            return []
+        if result.returncode != 0:
+            return []
+
+        entries: list[tuple[int, str]] = []
+        for line in result.stdout.splitlines():
+            raw = line.strip()
+            if not raw:
+                continue
+            if "," not in raw:
+                continue
+            index_text, name = raw.split(",", 1)
+            index_text = index_text.strip()
+            if not index_text.isdigit():
+                continue
+            entries.append((int(index_text), name.strip()))
+        return entries
 
     def _build_split_points(
         self,
@@ -286,6 +472,13 @@ class VideoSplitterService:
 
         parts.sort(key=lambda item: item[0])
         return [path for _, path in parts]
+
+    def _remove_existing_output_parts(self, config: SplitJobConfig) -> None:
+        for output_file in self._collect_output_parts(config):
+            try:
+                output_file.unlink()
+            except OSError:
+                continue
 
     @staticmethod
     def _progress_seconds(key: str, value: str) -> float | None:

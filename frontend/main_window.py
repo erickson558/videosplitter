@@ -11,6 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 from app_metadata import APP_TITLE
 from backend.errors import FFmpegBinaryNotFoundError, VideoSplitterError
 from backend.models import (
+    DEFAULT_PROCESSING_DEVICE,
     DEFAULT_SPLIT_MODE,
     EQUAL_PARTS_SPLIT_MODE,
     SECONDS_SPLIT_MODE,
@@ -57,6 +58,9 @@ class VideoSplitterApp:
         self.container_format_var = tk.StringVar(
             value=str(saved_ui_settings["container_format"] or DEFAULT_CONTAINER_FORMAT)
         )
+        self.processing_device_var = tk.StringVar(
+            value=str(saved_ui_settings.get("processing_device", DEFAULT_PROCESSING_DEVICE))
+        )
         self.status_var = tk.StringVar(value=self._initial_status_text())
         self.progress_var = tk.DoubleVar(value=0.0)
 
@@ -64,6 +68,10 @@ class VideoSplitterApp:
         self._worker: threading.Thread | None = None
         self._progress_indeterminate = False
         self._controls: list[tk.Widget] = []
+        self._processing_options: list[tuple[str, str]] = []
+        self._processing_label_to_value: dict[str, str] = {}
+        self._processing_value_to_label: dict[str, str] = {}
+        self._initialize_processing_options()
 
         self._build_layout()
         self.root.after(self._POLL_INTERVAL_MS, self._flush_events)
@@ -146,30 +154,36 @@ class VideoSplitterApp:
             button.pack(side="left", padx=(0, 16))
             container_buttons.append(button)
 
+        ttk.Label(container, text="Procesamiento").grid(row=7, column=0, sticky="w", pady=(0, 12))
+        self.processing_combo = ttk.Combobox(container, state="readonly", width=42)
+        self.processing_combo.grid(row=7, column=1, columnspan=2, sticky="w", pady=(0, 12), padx=(10, 0))
+        self._refresh_processing_combobox()
+        self.processing_combo.bind("<<ComboboxSelected>>", self._on_processing_device_changed)
+
         self.progress_bar = ttk.Progressbar(
             container,
             variable=self.progress_var,
             maximum=100,
             mode="determinate",
         )
-        self.progress_bar.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        self.progress_bar.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(0, 10))
 
         status_label = ttk.Label(container, textvariable=self.status_var)
-        status_label.grid(row=8, column=0, columnspan=3, sticky="w", pady=(0, 14))
+        status_label.grid(row=9, column=0, columnspan=3, sticky="w", pady=(0, 14))
 
         self.start_button = ttk.Button(
             container,
             text="Dividir Video",
             command=self._start_job,
         )
-        self.start_button.grid(row=9, column=0, columnspan=2, sticky="ew", padx=(0, 10))
+        self.start_button.grid(row=10, column=0, columnspan=2, sticky="ew", padx=(0, 10))
 
         self.ffmpeg_button = ttk.Button(
             container,
             text="Configurar FFmpeg...",
             command=self._configure_ffmpeg,
         )
-        self.ffmpeg_button.grid(row=9, column=2, sticky="ew")
+        self.ffmpeg_button.grid(row=10, column=2, sticky="ew")
 
         for entry in (output_entry, self.segment_entry, self.equal_parts_entry):
             entry.bind("<FocusOut>", self._persist_ui_settings_event)
@@ -185,14 +199,39 @@ class VideoSplitterApp:
             self.equal_parts_entry,
             *profile_buttons,
             *container_buttons,
+            self.processing_combo,
             self.ffmpeg_button,
         ]
         self._sync_split_mode_controls()
 
+    def _initialize_processing_options(self) -> None:
+        options = VideoSplitterService.detect_processing_options(get_saved_ffmpeg_path())
+        self._processing_options = options
+        self._processing_label_to_value = {label: value for value, label in options}
+        self._processing_value_to_label = {value: label for value, label in options}
+
+        selected_value = self.processing_device_var.get().strip() or DEFAULT_PROCESSING_DEVICE
+        if selected_value not in self._processing_value_to_label:
+            selected_value = DEFAULT_PROCESSING_DEVICE
+        self.processing_device_var.set(selected_value)
+
+    def _refresh_processing_combobox(self) -> None:
+        labels = [label for _, label in self._processing_options]
+        self.processing_combo.configure(values=labels)
+        selected_label = self._processing_value_to_label.get(
+            self.processing_device_var.get(),
+            self._processing_value_to_label[DEFAULT_PROCESSING_DEVICE],
+        )
+        self.processing_combo.set(selected_label)
+
     def _initial_status_text(self) -> str:
         ffmpeg_ready = get_saved_ffmpeg_path() is not None
         base = "FFmpeg configurado" if ffmpeg_ready else "FFmpeg incluido automaticamente"
-        return f"{base}. Modo: {self._selected_split_mode_label()}. Formato activo: {self._selected_format_label()}."
+        return (
+            f"{base}. Modo: {self._selected_split_mode_label()}. "
+            f"Formato activo: {self._selected_format_label()}. "
+            f"Procesamiento: {self._selected_processing_label()}."
+        )
 
     def _selected_split_mode_label(self) -> str:
         if self.split_mode_var.get() == EQUAL_PARTS_SPLIT_MODE:
@@ -210,12 +249,19 @@ class VideoSplitterApp:
 
         return f"{video_profile.label} + {container.label}"
 
+    def _selected_processing_label(self) -> str:
+        return self._processing_value_to_label.get(
+            self.processing_device_var.get(),
+            self._processing_value_to_label[DEFAULT_PROCESSING_DEVICE],
+        )
+
     def _on_format_changed(self) -> None:
         if self._worker and self._worker.is_alive():
             return
         self._persist_ui_settings()
         self.status_var.set(
             f"Modo: {self._selected_split_mode_label()}. Formato activo: {self._selected_format_label()}."
+            f" Procesamiento: {self._selected_processing_label()}."
         )
 
     def _on_split_mode_changed(self) -> None:
@@ -225,6 +271,20 @@ class VideoSplitterApp:
         self._persist_ui_settings()
         self.status_var.set(
             f"Modo: {self._selected_split_mode_label()}. Formato activo: {self._selected_format_label()}."
+            f" Procesamiento: {self._selected_processing_label()}."
+        )
+
+    def _on_processing_device_changed(self, _event: tk.Event[tk.Misc]) -> None:
+        if self._worker and self._worker.is_alive():
+            return
+
+        selected_label = self.processing_combo.get().strip()
+        selected_value = self._processing_label_to_value.get(selected_label, DEFAULT_PROCESSING_DEVICE)
+        self.processing_device_var.set(selected_value)
+        self._persist_ui_settings()
+        self.status_var.set(
+            f"Modo: {self._selected_split_mode_label()}. Formato activo: {self._selected_format_label()}."
+            f" Procesamiento: {self._selected_processing_label()}."
         )
 
     def _select_video(self) -> None:
@@ -282,7 +342,12 @@ class VideoSplitterApp:
             ffmpeg_path=ffmpeg_path,
             ffprobe_path=(ffprobe_path if ffprobe_path.exists() else None),
         )
-        self.status_var.set(f"FFmpeg configurado manualmente. Formato activo: {self._selected_format_label()}.")
+        self._initialize_processing_options()
+        self._refresh_processing_combobox()
+        self.status_var.set(
+            f"FFmpeg configurado manualmente. Formato activo: {self._selected_format_label()}."
+            f" Procesamiento: {self._selected_processing_label()}."
+        )
         return True
 
     def _start_job(self) -> None:
@@ -314,6 +379,7 @@ class VideoSplitterApp:
         equal_parts_raw = self.equal_parts_var.get().strip()
         video_profile = self.video_profile_var.get().strip()
         container_format = self.container_format_var.get().strip()
+        processing_device = self.processing_device_var.get().strip() or DEFAULT_PROCESSING_DEVICE
 
         if not video_raw:
             raise VideoSplitterError("Debes seleccionar un video.")
@@ -343,6 +409,7 @@ class VideoSplitterApp:
             equal_parts_count=equal_parts_count,
             video_profile=video_profile,
             container_format=container_format,
+            processing_device=processing_device,
         )
 
     def _persist_ui_settings_event(self, _event: tk.Event[tk.Misc]) -> None:
@@ -355,6 +422,7 @@ class VideoSplitterApp:
             equal_parts_count=max(self._parse_positive_int(self.equal_parts_var.get(), 2), 2),
             video_profile=self.video_profile_var.get().strip() or DEFAULT_VIDEO_PROFILE,
             container_format=self.container_format_var.get().strip() or DEFAULT_CONTAINER_FORMAT,
+            processing_device=self.processing_device_var.get().strip() or DEFAULT_PROCESSING_DEVICE,
             output_dir=self.output_var.get().strip(),
         )
 
@@ -449,7 +517,9 @@ class VideoSplitterApp:
         self._stop_progress_animation()
         self.progress_var.set(100.0)
         self.status_var.set(
-            f"Proceso completado. Archivos generados: {len(files)}. Formato: {self._selected_format_label()}"
+            f"Proceso completado. Archivos generados: {len(files)}. "
+            f"Formato: {self._selected_format_label()}. "
+            f"Procesamiento: {self._selected_processing_label()}"
         )
         self._set_running_state(False)
 

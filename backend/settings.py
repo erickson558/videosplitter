@@ -6,7 +6,12 @@ import json
 from pathlib import Path
 
 from app_metadata import APP_VERSION
-from .models import DEFAULT_SPLIT_MODE, EQUAL_PARTS_SPLIT_MODE, SECONDS_SPLIT_MODE
+from .models import (
+    DEFAULT_PROCESSING_DEVICE,
+    DEFAULT_SPLIT_MODE,
+    EQUAL_PARTS_SPLIT_MODE,
+    SECONDS_SPLIT_MODE,
+)
 from .output_formats import DEFAULT_CONTAINER_FORMAT, DEFAULT_VIDEO_PROFILE
 from .runtime_paths import runtime_root
 
@@ -76,6 +81,8 @@ def get_ui_settings() -> dict[str, object]:
         "equal_parts_count": _read_positive_int(payload, "equal_parts_count", 2),
         "video_profile": video_profile,
         "container_format": container_format,
+        "processing_device": _read_string(payload, "processing_device", DEFAULT_PROCESSING_DEVICE)
+        or DEFAULT_PROCESSING_DEVICE,
         "output_dir": _read_string(payload, "output_dir"),
     }
 
@@ -96,6 +103,7 @@ def save_ui_settings(
     equal_parts_count: int,
     video_profile: str,
     container_format: str,
+    processing_device: str,
     output_dir: str,
 ) -> None:
     payload = load_settings()
@@ -106,6 +114,7 @@ def save_ui_settings(
             "equal_parts_count": max(int(equal_parts_count), 1),
             "video_profile": video_profile,
             "container_format": container_format,
+            "processing_device": processing_device.strip() or DEFAULT_PROCESSING_DEVICE,
             "output_dir": output_dir.strip(),
         }
     )

@@ -22,12 +22,14 @@ class SettingsTests(unittest.TestCase):
                     equal_parts_count=4,
                     video_profile="original",
                     container_format="mov",
+                    processing_device="gpu_0",
                     output_dir="C:/exports",
                 )
 
                 payload = json.loads((runtime_root / "videosplitter.settings.json").read_text(encoding="utf-8"))
                 self.assertEqual(payload["app_version"], APP_VERSION)
                 self.assertEqual(payload["equal_parts_count"], 4)
+                self.assertEqual(payload["processing_device"], "gpu_0")
                 self.assertEqual(payload["output_dir"], "C:/exports")
 
     def test_get_ui_settings_falls_back_for_invalid_values(self) -> None:

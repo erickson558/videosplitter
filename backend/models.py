@@ -18,6 +18,12 @@ from .output_formats import (
 SECONDS_SPLIT_MODE = "seconds"
 EQUAL_PARTS_SPLIT_MODE = "equal_parts"
 DEFAULT_SPLIT_MODE = SECONDS_SPLIT_MODE
+PROCESSING_DEVICE_AUTO = "auto"
+PROCESSING_DEVICE_CPU = "cpu"
+PROCESSING_DEVICE_GPU_ALL = "gpu_all"
+PROCESSING_DEVICE_GPU_QSV = "gpu_qsv"
+PROCESSING_DEVICE_GPU_AMF = "gpu_amf"
+DEFAULT_PROCESSING_DEVICE = PROCESSING_DEVICE_AUTO
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +37,7 @@ class SplitJobConfig:
     equal_parts_count: int = 2
     video_profile: str = DEFAULT_VIDEO_PROFILE
     container_format: str = DEFAULT_CONTAINER_FORMAT
+    processing_device: str = DEFAULT_PROCESSING_DEVICE
 
     def validated(self) -> "SplitJobConfig":
         input_path = self.input_video.expanduser().resolve()
@@ -54,6 +61,9 @@ class SplitJobConfig:
         if self.container_format not in CONTAINER_FORMATS:
             raise InvalidSplitConfigError("El contenedor de salida seleccionado no es valido.")
 
+        if not self._is_valid_processing_device(self.processing_device):
+            raise InvalidSplitConfigError("El dispositivo de procesamiento seleccionado no es valido.")
+
         profile = VIDEO_PROFILES[self.video_profile]
         container = CONTAINER_FORMATS[self.container_format]
 
@@ -76,7 +86,25 @@ class SplitJobConfig:
             equal_parts_count=self.equal_parts_count,
             video_profile=profile.key,
             container_format=container.key,
+            processing_device=self.processing_device,
         )
+
+    @staticmethod
+    def _is_valid_processing_device(value: str) -> bool:
+        if value in {
+            PROCESSING_DEVICE_AUTO,
+            PROCESSING_DEVICE_CPU,
+            PROCESSING_DEVICE_GPU_ALL,
+            PROCESSING_DEVICE_GPU_QSV,
+            PROCESSING_DEVICE_GPU_AMF,
+        }:
+            return True
+
+        if value.startswith("gpu_"):
+            suffix = value[4:]
+            return suffix.isdigit()
+
+        return False
 
     @property
     def output_extension(self) -> str:

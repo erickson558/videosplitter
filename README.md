@@ -1,4 +1,4 @@
-# VideoSplitter V1.0.4
+# VideoSplitter V1.1.0
 
 [![CI](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml/badge.svg)](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/erickson558/videosplitter?label=release)](https://github.com/erickson558/videosplitter/releases)
@@ -26,6 +26,7 @@ Aplicacion de escritorio en Python para dividir videos en segmentos numerados, y
 - Convierte cada salida a H.264 + AAC.
 - Permite escoger perfil de video: Short 9:16, Normal 16:9 u Original.
 - Permite escoger contenedor: MP4, MKV o MOV.
+- Permite escoger procesamiento: automatico (GPU/CPU), solo CPU, o GPU especifica cuando el equipo la reporta.
 - Guarda configuraciones persistentes en `videosplitter.settings.json`.
 - Genera un ejecutable `.exe` en Windows con FFmpeg embebido.
 
@@ -106,6 +107,7 @@ El archivo `videosplitter.settings.json` guarda:
 - Cantidad de partes iguales
 - Perfil de video
 - Contenedor de salida
+- Dispositivo de procesamiento (GPU/CPU)
 - Carpeta de salida mas reciente
 
 ## Versionado
