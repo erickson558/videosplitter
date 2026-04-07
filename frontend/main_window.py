@@ -58,8 +58,8 @@ class VideoSplitterApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(APP_TITLE)
-        self.root.geometry("860x560")
-        self.root.minsize(820, 520)
+        self.root.geometry("980x620")
+        self.root.minsize(920, 580)
 
         saved_ui_settings = get_ui_settings()
 
@@ -128,6 +128,18 @@ class VideoSplitterApp:
         style.configure("DropZone.TLabel", background="#f8dcc2", foreground="#2f2f2f", padding=12, relief="solid")
         style.configure("Metric.TLabel", background="#fffdf8", foreground="#153243", font=("Bahnschrift", 10))
         style.configure("Hint.TLabel", background="#fffdf8", foreground="#2e3f49", font=("Calibri", 9))
+        style.configure("Option.TRadiobutton", background="#fffdf8", foreground="#102a3a", font=("Calibri", 11))
+        style.map("Option.TRadiobutton", foreground=[("disabled", "#6b7280"), ("active", "#0b2230")])
+        style.configure(
+            "Picker.TCombobox",
+            fieldbackground="#ffffff",
+            background="#ffffff",
+            foreground="#0f2a38",
+            arrowcolor="#153243",
+            bordercolor="#b9c4cc",
+            lightcolor="#ffffff",
+            darkcolor="#ffffff",
+        )
         style.configure("Accent.TButton", font=("Bahnschrift SemiBold", 10))
         style.configure("Danger.TButton", font=("Bahnschrift SemiBold", 10))
         style.map("Accent.TButton", background=[("!disabled", "#2a9d8f"), ("active", "#21867a")], foreground=[("!disabled", "#ffffff")])
@@ -150,8 +162,8 @@ class VideoSplitterApp:
 
         body = ttk.Frame(container, padding=14, style="Card.TFrame")
         body.grid(row=1, column=0, sticky="nsew")
-        body.columnconfigure(0, weight=3)
-        body.columnconfigure(1, weight=2)
+        body.columnconfigure(0, weight=6, minsize=520)
+        body.columnconfigure(1, weight=5, minsize=390)
         body.rowconfigure(0, weight=1)
 
         left_panel = ttk.Labelframe(body, text="Origen y Salida", padding=12, style="Section.TLabelframe")
@@ -244,6 +256,7 @@ class VideoSplitterApp:
                 value=SECONDS_SPLIT_MODE,
                 variable=self.split_mode_var,
                 command=self._on_split_mode_changed,
+                style="Option.TRadiobutton",
             ),
             ttk.Radiobutton(
                 split_mode_frame,
@@ -251,6 +264,7 @@ class VideoSplitterApp:
                 value=EQUAL_PARTS_SPLIT_MODE,
                 variable=self.split_mode_var,
                 command=self._on_split_mode_changed,
+                style="Option.TRadiobutton",
             ),
         ]
         for index, button in enumerate(split_mode_buttons):
@@ -276,6 +290,7 @@ class VideoSplitterApp:
                 value=profile.key,
                 variable=self.video_profile_var,
                 command=self._on_format_changed,
+                style="Option.TRadiobutton",
             )
             button.pack(anchor="w")
             profile_buttons.append(button)
@@ -291,12 +306,13 @@ class VideoSplitterApp:
                 value=format_item.key,
                 variable=self.container_format_var,
                 command=self._on_format_changed,
+                style="Option.TRadiobutton",
             )
             button.pack(side="left", padx=(0, 16))
             container_buttons.append(button)
 
         ttk.Label(right_panel, text="Procesamiento", style="Field.TLabel").grid(row=10, column=0, sticky="w", pady=(0, 4))
-        self.processing_combo = ttk.Combobox(right_panel, state="readonly", width=32)
+        self.processing_combo = ttk.Combobox(right_panel, state="readonly", width=40, style="Picker.TCombobox")
         self.processing_combo.grid(row=11, column=0, sticky="ew", pady=(0, 6))
         self._refresh_processing_combobox()
         self.processing_combo.bind("<<ComboboxSelected>>", self._on_processing_device_changed)

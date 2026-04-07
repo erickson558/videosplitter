@@ -1,4 +1,4 @@
-# VideoSplitter V1.3.1
+# VideoSplitter V1.3.2
 
 [![CI](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml/badge.svg)](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/erickson558/videosplitter?label=release)](https://github.com/erickson558/videosplitter/releases)
@@ -164,7 +164,7 @@ El archivo `videosplitter.settings.json` se crea automaticamente y guarda:
 
 ```json
 {
-  "app_version": "1.3.1",
+  "app_version": "1.3.2",
   "input_video": "C:/Users/.../Videos/origen.mp4",
   "split_mode": "seconds",
   "segment_seconds": 60,

@@ -1,5 +1,17 @@
 # Changelog
 
+## V1.3.2 - 2026-04-07
+
+- Release message: fix: improve right-panel label readability and prevent option clipping
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.3.1...v1.3.2
+
+### Fixes
+- fix: increase contrast and font clarity for option labels and hints in the configuration panel
+- fix: widen and rebalance layout to avoid clipped option labels and combobox content
+
+### Validation
+- test: run full suite after UI readability patch (22 tests)
+
 ## V1.3.1 - 2026-04-07
 
 - Release message: fix: improve label contrast and persist selected input video in UI settings
