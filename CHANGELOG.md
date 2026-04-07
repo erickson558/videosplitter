@@ -1,5 +1,18 @@
 # Changelog
 
+## V1.3.0 - 2026-04-07
+
+- Release message: feat: redesign desktop UI with structured cards and stronger visual hierarchy
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.2.1...v1.3.0
+
+### Features
+- feat: redesign main window into two responsive panels (Origen y Salida / Configuracion)
+- feat: improve visual hierarchy with custom palette, typography and grouped controls for better usability
+- feat: add clearer progress/status action zone with stronger primary and cancel button styling
+
+### Validation
+- test: run full suite after UI refactor to ensure no functional regressions
+
 ## V1.2.1 - 2026-04-07
 
 - Release message: fix: harden ffmpeg cancellation lifecycle and rebuild executable (V1.2.1)

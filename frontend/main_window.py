@@ -106,58 +106,137 @@ class VideoSplitterApp:
         except tk.TclError:
             pass
 
-        self.root.configure(bg="#f3f7fb")
-        style.configure("Card.TFrame", background="#ffffff")
-        style.configure("Header.TFrame", background="#0e7490")
-        style.configure("HeaderTitle.TLabel", background="#0e7490", foreground="#f0fdfa", font=("Segoe UI", 16, "bold"))
-        style.configure("HeaderSub.TLabel", background="#0e7490", foreground="#ccfbf1", font=("Segoe UI", 10))
-        style.configure("DropZone.TLabel", background="#e6fffb", foreground="#0f172a", padding=10, relief="solid")
-        style.configure("Metric.TLabel", background="#ffffff", foreground="#0f172a", font=("Segoe UI", 10, "bold"))
-        style.configure("Accent.TButton", font=("Segoe UI", 10, "bold"))
-        style.map("Accent.TButton", background=[("active", "#0891b2")])
+        self.root.configure(bg="#f4efe4")
+        style.configure("App.TFrame", background="#f4efe4")
+        style.configure("Card.TFrame", background="#fffdf8")
+        style.configure("Header.TFrame", background="#153243")
+        style.configure(
+            "HeaderTitle.TLabel",
+            background="#153243",
+            foreground="#fefae0",
+            font=("Bahnschrift SemiBold", 18),
+        )
+        style.configure(
+            "HeaderSub.TLabel",
+            background="#153243",
+            foreground="#d6e6f2",
+            font=("Calibri", 10),
+        )
+        style.configure("Section.TLabelframe", background="#fffdf8", borderwidth=1, relief="solid")
+        style.configure("Section.TLabelframe.Label", background="#fffdf8", foreground="#153243", font=("Bahnschrift", 11))
+        style.configure("Field.TLabel", background="#fffdf8", foreground="#25313a", font=("Calibri", 10))
+        style.configure("DropZone.TLabel", background="#f8dcc2", foreground="#2f2f2f", padding=12, relief="solid")
+        style.configure("Metric.TLabel", background="#fffdf8", foreground="#153243", font=("Bahnschrift", 10))
+        style.configure("Hint.TLabel", background="#fffdf8", foreground="#6d6875", font=("Calibri", 9))
+        style.configure("Accent.TButton", font=("Bahnschrift SemiBold", 10))
+        style.configure("Danger.TButton", font=("Bahnschrift SemiBold", 10))
+        style.map("Accent.TButton", background=[("!disabled", "#2a9d8f"), ("active", "#21867a")], foreground=[("!disabled", "#ffffff")])
+        style.map("Danger.TButton", background=[("!disabled", "#d1495b"), ("active", "#b23a48")], foreground=[("!disabled", "#ffffff")])
 
     def _build_layout(self) -> None:
-        container = ttk.Frame(self.root, padding=0, style="Card.TFrame")
+        container = ttk.Frame(self.root, padding=10, style="App.TFrame")
         container.pack(fill="both", expand=True)
         container.columnconfigure(0, weight=1)
+        container.rowconfigure(1, weight=1)
 
-        header = ttk.Frame(container, padding=(18, 16), style="Header.TFrame")
+        header = ttk.Frame(container, padding=(20, 16), style="Header.TFrame")
         header.grid(row=0, column=0, sticky="ew")
         ttk.Label(header, text="VideoSplitter", style="HeaderTitle.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             header,
-            text="Divide videos por segundos o partes iguales con GPU/CPU y cancelacion segura.",
+            text="Divide videos con precision, GPU seleccionable y control total del proceso.",
             style="HeaderSub.TLabel",
         ).grid(row=1, column=0, sticky="w", pady=(4, 0))
 
-        body = ttk.Frame(container, padding=16, style="Card.TFrame")
+        body = ttk.Frame(container, padding=14, style="Card.TFrame")
         body.grid(row=1, column=0, sticky="nsew")
-        body.columnconfigure(1, weight=1)
+        body.columnconfigure(0, weight=3)
+        body.columnconfigure(1, weight=2)
+        body.rowconfigure(0, weight=1)
 
-        ttk.Label(body, text="Video").grid(row=0, column=0, sticky="w", pady=(0, 10))
-        video_entry = ttk.Entry(body, textvariable=self.video_var)
-        video_entry.grid(row=0, column=1, sticky="ew", pady=(0, 10), padx=(10, 10))
-        video_button = ttk.Button(body, text="Buscar...", command=self._select_video)
-        video_button.grid(row=0, column=2, sticky="ew", pady=(0, 10))
+        left_panel = ttk.Labelframe(body, text="Origen y Salida", padding=12, style="Section.TLabelframe")
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        left_panel.columnconfigure(1, weight=1)
+
+        right_panel = ttk.Labelframe(body, text="Configuracion", padding=12, style="Section.TLabelframe")
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        right_panel.columnconfigure(0, weight=1)
+
+        ttk.Label(left_panel, text="Archivo de video", style="Field.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 6))
+        video_entry = ttk.Entry(left_panel, textvariable=self.video_var)
+        video_entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 10), padx=(0, 10))
+        video_button = ttk.Button(left_panel, text="Buscar...", command=self._select_video)
+        video_button.grid(row=1, column=2, sticky="ew", pady=(0, 10))
 
         self.drop_zone = ttk.Label(
-            body,
-            text="Arrastra y suelta aqui un archivo de video",
+            left_panel,
+            text="Suelta aqui tu archivo de video",
             style="DropZone.TLabel",
             anchor="center",
         )
-        self.drop_zone.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 12))
+        self.drop_zone.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        ttk.Label(left_panel, text="Formato permitido: MP4, MKV, MOV, AVI, WMV, FLV, M4V, WEBM", style="Hint.TLabel").grid(
+            row=3, column=0, columnspan=3, sticky="w", pady=(0, 12)
+        )
         self._register_drop_target()
 
-        ttk.Label(body, text="Salida").grid(row=2, column=0, sticky="w", pady=(0, 10))
-        output_entry = ttk.Entry(body, textvariable=self.output_var)
-        output_entry.grid(row=2, column=1, sticky="ew", pady=(0, 10), padx=(10, 10))
-        output_button = ttk.Button(body, text="Carpeta...", command=self._select_output_dir)
-        output_button.grid(row=2, column=2, sticky="ew", pady=(0, 10))
+        ttk.Label(left_panel, text="Carpeta de salida", style="Field.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 6))
+        output_entry = ttk.Entry(left_panel, textvariable=self.output_var)
+        output_entry.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(0, 12), padx=(0, 10))
+        output_button = ttk.Button(left_panel, text="Carpeta...", command=self._select_output_dir)
+        output_button.grid(row=5, column=2, sticky="ew", pady=(0, 12))
 
-        ttk.Label(body, text="Modo de division").grid(row=3, column=0, sticky="nw", pady=(0, 10))
-        split_mode_frame = ttk.Frame(body)
-        split_mode_frame.grid(row=3, column=1, columnspan=2, sticky="w", pady=(0, 10), padx=(10, 0))
+        progress_card = ttk.Frame(left_panel, style="Card.TFrame")
+        progress_card.grid(row=6, column=0, columnspan=3, sticky="ew")
+        progress_card.columnconfigure(0, weight=1)
+        self.progress_bar = ttk.Progressbar(
+            progress_card,
+            variable=self.progress_var,
+            maximum=100,
+            mode="determinate",
+        )
+        self.progress_bar.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+
+        metrics_frame = ttk.Frame(progress_card, style="Card.TFrame")
+        metrics_frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        metrics_frame.columnconfigure((0, 1), weight=1)
+        ttk.Label(metrics_frame, textvariable=self.processed_percent_var, style="Metric.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(metrics_frame, textvariable=self.pending_percent_var, style="Metric.TLabel").grid(row=0, column=1, sticky="e")
+
+        status_label = ttk.Label(progress_card, textvariable=self.status_var, style="Field.TLabel")
+        status_label.grid(row=2, column=0, sticky="w", pady=(0, 10))
+
+        actions_frame = ttk.Frame(progress_card, style="Card.TFrame")
+        actions_frame.grid(row=3, column=0, sticky="ew")
+        actions_frame.columnconfigure((0, 1, 2), weight=1)
+
+        self.start_button = ttk.Button(
+            actions_frame,
+            text="Dividir Video",
+            command=self._start_job,
+            style="Accent.TButton",
+        )
+        self.start_button.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        self.cancel_button = ttk.Button(
+            actions_frame,
+            text="Cancelar",
+            command=self._cancel_job,
+            state="disabled",
+            style="Danger.TButton",
+        )
+        self.cancel_button.grid(row=0, column=1, sticky="ew", padx=4)
+
+        self.ffmpeg_button = ttk.Button(
+            actions_frame,
+            text="Configurar FFmpeg...",
+            command=self._configure_ffmpeg,
+        )
+        self.ffmpeg_button.grid(row=0, column=2, sticky="ew", padx=(8, 0))
+
+        ttk.Label(right_panel, text="Modo de division", style="Field.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
+        split_mode_frame = ttk.Frame(right_panel, style="Card.TFrame")
+        split_mode_frame.grid(row=1, column=0, sticky="w", pady=(0, 10))
         split_mode_buttons = [
             ttk.Radiobutton(
                 split_mode_frame,
@@ -177,17 +256,17 @@ class VideoSplitterApp:
         for index, button in enumerate(split_mode_buttons):
             button.grid(row=0, column=index, sticky="w", padx=(0, 18))
 
-        ttk.Label(body, text="Segundos por parte").grid(row=4, column=0, sticky="w", pady=(0, 10))
-        self.segment_entry = ttk.Entry(body, textvariable=self.segment_var, width=8)
-        self.segment_entry.grid(row=4, column=1, sticky="w", pady=(0, 10), padx=(10, 10))
+        ttk.Label(right_panel, text="Segundos por parte", style="Field.TLabel").grid(row=2, column=0, sticky="w", pady=(0, 4))
+        self.segment_entry = ttk.Entry(right_panel, textvariable=self.segment_var, width=10)
+        self.segment_entry.grid(row=3, column=0, sticky="w", pady=(0, 10))
 
-        ttk.Label(body, text="Cantidad de partes").grid(row=5, column=0, sticky="w", pady=(0, 10))
-        self.equal_parts_entry = ttk.Spinbox(body, from_=2, to=999, textvariable=self.equal_parts_var, width=8)
-        self.equal_parts_entry.grid(row=5, column=1, sticky="w", pady=(0, 10), padx=(10, 10))
+        ttk.Label(right_panel, text="Cantidad de partes", style="Field.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 4))
+        self.equal_parts_entry = ttk.Spinbox(right_panel, from_=2, to=999, textvariable=self.equal_parts_var, width=10)
+        self.equal_parts_entry.grid(row=5, column=0, sticky="w", pady=(0, 10))
 
-        ttk.Label(body, text="Perfil de video").grid(row=6, column=0, sticky="nw", pady=(0, 8))
-        video_profiles_frame = ttk.Frame(body)
-        video_profiles_frame.grid(row=6, column=1, columnspan=2, sticky="ew", pady=(0, 10), padx=(10, 0))
+        ttk.Label(right_panel, text="Perfil de video", style="Field.TLabel").grid(row=6, column=0, sticky="w", pady=(0, 4))
+        video_profiles_frame = ttk.Frame(right_panel, style="Card.TFrame")
+        video_profiles_frame.grid(row=7, column=0, sticky="ew", pady=(0, 10))
         profile_buttons: list[ttk.Radiobutton] = []
 
         for profile in iter_video_profiles():
@@ -201,9 +280,9 @@ class VideoSplitterApp:
             button.pack(anchor="w")
             profile_buttons.append(button)
 
-        ttk.Label(body, text="Contenedor").grid(row=7, column=0, sticky="nw", pady=(0, 12))
-        containers_frame = ttk.Frame(body)
-        containers_frame.grid(row=7, column=1, columnspan=2, sticky="ew", pady=(0, 12), padx=(10, 0))
+        ttk.Label(right_panel, text="Contenedor", style="Field.TLabel").grid(row=8, column=0, sticky="w", pady=(0, 4))
+        containers_frame = ttk.Frame(right_panel, style="Card.TFrame")
+        containers_frame.grid(row=9, column=0, sticky="ew", pady=(0, 10))
         container_buttons: list[ttk.Radiobutton] = []
         for format_item in iter_container_formats():
             button = ttk.Radiobutton(
@@ -216,55 +295,17 @@ class VideoSplitterApp:
             button.pack(side="left", padx=(0, 16))
             container_buttons.append(button)
 
-        ttk.Label(body, text="Procesamiento").grid(row=8, column=0, sticky="w", pady=(0, 12))
-        self.processing_combo = ttk.Combobox(body, state="readonly", width=42)
-        self.processing_combo.grid(row=8, column=1, columnspan=2, sticky="w", pady=(0, 12), padx=(10, 0))
+        ttk.Label(right_panel, text="Procesamiento", style="Field.TLabel").grid(row=10, column=0, sticky="w", pady=(0, 4))
+        self.processing_combo = ttk.Combobox(right_panel, state="readonly", width=32)
+        self.processing_combo.grid(row=11, column=0, sticky="ew", pady=(0, 6))
         self._refresh_processing_combobox()
         self.processing_combo.bind("<<ComboboxSelected>>", self._on_processing_device_changed)
 
-        self.progress_bar = ttk.Progressbar(
-            body,
-            variable=self.progress_var,
-            maximum=100,
-            mode="determinate",
-        )
-        self.progress_bar.grid(row=9, column=0, columnspan=3, sticky="ew", pady=(0, 8))
-
-        metrics_frame = ttk.Frame(body, style="Card.TFrame")
-        metrics_frame.grid(row=10, column=0, columnspan=3, sticky="ew", pady=(0, 10))
-        metrics_frame.columnconfigure((0, 1), weight=1)
-        ttk.Label(metrics_frame, textvariable=self.processed_percent_var, style="Metric.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(metrics_frame, textvariable=self.pending_percent_var, style="Metric.TLabel").grid(
-            row=0, column=1, sticky="e"
-        )
-
-        status_label = ttk.Label(body, textvariable=self.status_var)
-        status_label.grid(row=11, column=0, columnspan=3, sticky="w", pady=(0, 14))
-
-        self.start_button = ttk.Button(
-            body,
-            text="Dividir Video",
-            command=self._start_job,
-            style="Accent.TButton",
-        )
-        self.start_button.grid(row=12, column=0, sticky="ew", padx=(0, 10))
-
-        self.cancel_button = ttk.Button(
-            body,
-            text="Cancelar",
-            command=self._cancel_job,
-            state="disabled",
-        )
-        self.cancel_button.grid(row=12, column=1, sticky="ew", padx=(0, 10))
-
-        self.ffmpeg_button = ttk.Button(
-            body,
-            text="Configurar FFmpeg...",
-            command=self._configure_ffmpeg,
-        )
-        self.ffmpeg_button.grid(row=12, column=2, sticky="ew")
+        ttk.Label(
+            right_panel,
+            text="Tip: selecciona GPU concreta para forzar dispositivo en equipos multi-GPU.",
+            style="Hint.TLabel",
+        ).grid(row=12, column=0, sticky="w", pady=(0, 0))
 
         for entry in (output_entry, self.segment_entry, self.equal_parts_entry):
             entry.bind("<FocusOut>", self._persist_ui_settings_event)
