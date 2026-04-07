@@ -18,6 +18,7 @@ class SettingsTests(unittest.TestCase):
             with patch("backend.settings.runtime_root", return_value=runtime_root):
                 settings.save_ui_settings(
                     language="en",
+                    window_geometry="980x620+120+90",
                     input_video="C:/videos/source.mp4",
                     split_mode=EQUAL_PARTS_SPLIT_MODE,
                     segment_seconds=60,
@@ -35,6 +36,7 @@ class SettingsTests(unittest.TestCase):
                 self.assertEqual(payload["output_dir"], "C:/exports")
                 self.assertEqual(payload["input_video"], "C:/videos/source.mp4")
                 self.assertEqual(payload["language"], "en")
+                self.assertEqual(payload["window_geometry"], "980x620+120+90")
 
     def test_get_ui_settings_falls_back_for_invalid_values(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -61,6 +63,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(ui_settings["equal_parts_count"], 2)
             self.assertEqual(ui_settings["input_video"], "")
             self.assertEqual(ui_settings["language"], "es")
+            self.assertEqual(ui_settings["window_geometry"], "")
 
 
 if __name__ == "__main__":

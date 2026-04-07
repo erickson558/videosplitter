@@ -1,5 +1,17 @@
 # Changelog
 
+## V1.5.2 - 2026-04-07
+
+- Release message: fix: center About dialog and persist last window opening position
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.5.1...v1.5.2
+
+### Fixes
+- fix: open About dialog centered over the main window
+- fix: persist and restore last main window geometry (position and size)
+
+### Validation
+- test: extend settings persistence coverage for window geometry field
+
 ## V1.5.1 - 2026-04-07
 
 - Release message: fix: add windows-style menu shortcuts, exit button, and non-intrusive GUI notifications

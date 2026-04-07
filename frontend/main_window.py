@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import queue
+import re
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -189,6 +190,10 @@ class VideoSplitterApp:
             selected_language = "es"
         self.language_var = tk.StringVar(value=selected_language)
 
+        self._geometry_save_after_id: str | None = None
+        self._saved_window_geometry = str(saved_ui_settings.get("window_geometry", "")).strip()
+        self._apply_saved_window_geometry()
+
         self._events: queue.Queue[tuple[str, object]] = queue.Queue()
         self._worker: threading.Thread | None = None
         self._active_service: VideoSplitterService | None = None
@@ -210,6 +215,8 @@ class VideoSplitterApp:
         self._build_menu()
         self._bind_shortcuts()
         self._build_layout()
+        self.root.bind("<Configure>", self._on_window_configure)
+        self.root.protocol("WM_DELETE_WINDOW", self._exit_app)
         self.root.after(self._POLL_INTERVAL_MS, self._flush_events)
 
     def _configure_styles(self) -> None:
@@ -521,10 +528,57 @@ class VideoSplitterApp:
         container = ttk.Frame(about, padding=14, style="Card.TFrame")
         container.pack(fill="both", expand=True)
         ttk.Label(container, text=self._t("about_text"), style="Field.TLabel", justify="left").pack(anchor="w")
+        self._center_window_on_parent(about)
 
     def _exit_app(self) -> None:
         self._cancel_job()
+        self._persist_ui_settings()
         self.root.destroy()
+
+    def _apply_saved_window_geometry(self) -> None:
+        if not self._is_valid_window_geometry(self._saved_window_geometry):
+            return
+        self.root.geometry(self._saved_window_geometry)
+
+    @staticmethod
+    def _is_valid_window_geometry(raw_geometry: str) -> bool:
+        if not raw_geometry:
+            return False
+        return re.match(r"^\d+x\d+\+-?\d+\+-?\d+$", raw_geometry) is not None
+
+    def _window_geometry(self) -> str:
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        x = self.root.winfo_x()
+        y = self.root.winfo_y()
+        if width <= 1 or height <= 1:
+            return ""
+        return f"{width}x{height}+{x}+{y}"
+
+    def _on_window_configure(self, event: tk.Event[tk.Misc]) -> None:
+        if event.widget is not self.root:
+            return
+        if self.root.state() != "normal":
+            return
+        if self._geometry_save_after_id is not None:
+            self.root.after_cancel(self._geometry_save_after_id)
+        self._geometry_save_after_id = self.root.after(260, self._persist_ui_settings)
+
+    def _center_window_on_parent(self, child: tk.Toplevel) -> None:
+        self.root.update_idletasks()
+        child.update_idletasks()
+
+        parent_x = self.root.winfo_rootx()
+        parent_y = self.root.winfo_rooty()
+        parent_width = self.root.winfo_width()
+        parent_height = self.root.winfo_height()
+
+        child_width = max(child.winfo_reqwidth(), 320)
+        child_height = max(child.winfo_reqheight(), 140)
+
+        x = parent_x + max((parent_width - child_width) // 2, 0)
+        y = parent_y + max((parent_height - child_height) // 2, 0)
+        child.geometry(f"{child_width}x{child_height}+{x}+{y}")
 
     def _on_language_changed(self, _event: tk.Event[tk.Misc]) -> None:
         if self._worker and self._worker.is_alive():
@@ -830,6 +884,7 @@ class VideoSplitterApp:
     def _persist_ui_settings(self) -> None:
         save_ui_settings(
             language=self.language_var.get().strip().lower() or "es",
+            window_geometry=self._window_geometry(),
             input_video=self.video_var.get().strip(),
             split_mode=self.split_mode_var.get().strip() or DEFAULT_SPLIT_MODE,
             segment_seconds=self._parse_positive_int(self.segment_var.get(), 60),

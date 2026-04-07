@@ -77,6 +77,7 @@ def get_ui_settings() -> dict[str, object]:
 
     return {
         "language": _read_string(payload, "language", "es") or "es",
+        "window_geometry": _read_string(payload, "window_geometry"),
         "input_video": _read_string(payload, "input_video"),
         "split_mode": split_mode,
         "segment_seconds": _read_positive_int(payload, "segment_seconds", 60),
@@ -101,6 +102,7 @@ def save_ffmpeg_settings(ffmpeg_path: Path, ffprobe_path: Path | None = None) ->
 def save_ui_settings(
     *,
     language: str,
+    window_geometry: str = "",
     input_video: str,
     split_mode: str,
     segment_seconds: int,
@@ -114,6 +116,7 @@ def save_ui_settings(
     payload.update(
         {
             "language": language.strip().lower() or "es",
+            "window_geometry": window_geometry.strip(),
             "input_video": input_video.strip(),
             "split_mode": split_mode,
             "segment_seconds": max(int(segment_seconds), 1),

@@ -1,4 +1,4 @@
-# VideoSplitter V1.5.1
+# VideoSplitter V1.5.2
 
 [![CI](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml/badge.svg)](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/erickson558/videosplitter?label=release)](https://github.com/erickson558/videosplitter/releases)
@@ -47,6 +47,8 @@
 | Barra de menus + atajos | Incluye menu Archivo/Ayuda con aceleradores (Ctrl+O, Ctrl+L, F5, Esc, Ctrl+Q, F1) |
 | Boton Salir | Cierre directo de app desde la interfaz y menu |
 | Flujo no intrusivo | Reemplaza messagebox por estados en barra de progreso y dialogo About no bloqueante |
+| Persistencia de ventana | Guarda y restaura la ultima posicion de apertura de la GUI |
+| About centrado | La ventana Acerca de se abre centrada sobre la GUI principal |
 | Selector de GPU | ComboBox para elegir dispositivo: auto, CPU, GPU especifica por indice, QSV o AMF |
 | Arrastrar y soltar | Permite cargar video arrastrando el archivo a la zona de drop de la ventana |
 | Cancelacion segura | Boton para cancelar la conversion liberando el proceso FFmpeg activo |
@@ -188,6 +190,7 @@ El archivo `videosplitter.settings.json` se crea automaticamente y guarda:
 |---|---|
 | `app_version` | Version de la app que genero este archivo |
 | `language` | Idioma de la GUI (`es` o `en`) |
+| `window_geometry` | Posicion y tamano de la ventana principal en el ultimo cierre |
 | `input_video` | Ultimo archivo de video seleccionado en la GUI |
 | `split_mode` | `seconds` o `equal_parts` |
 | `segment_seconds` | Segundos por segmento (modo `seconds`) |
