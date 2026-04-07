@@ -1,5 +1,16 @@
 # Changelog
 
+## V1.2.1 - 2026-04-07
+
+- Release message: fix: harden ffmpeg cancellation lifecycle and rebuild executable (V1.2.1)
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.2.0...v1.2.1
+
+### Fixes
+- fix: ensure canceled conversions terminate and wait for FFmpeg process to avoid orphaned subprocesses
+
+### Build and CI
+- build: install tkinterdnd2 dependency and recompile VideoSplitter.exe with local .ico in project root
+
 ## V1.2.0 - 2026-04-07
 
 - Release message: feat: add drag-and-drop UX, cancellation control, and adapter-aware GPU selection

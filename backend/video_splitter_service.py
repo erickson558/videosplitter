@@ -474,10 +474,14 @@ class VideoSplitterService:
             raise SplitExecutionError("No se pudo leer la salida de FFmpeg.")
 
         error_lines: list[str] = []
+        cancelled = False
 
         try:
             for raw_line in process.stdout:
-                self._raise_if_cancel_requested()
+                if self._cancel_requested.is_set():
+                    cancelled = True
+                    break
+
                 line = raw_line.strip()
                 if not line:
                     continue
@@ -501,9 +505,19 @@ class VideoSplitterService:
                     progress_callback(99.9, "Finalizando archivos de salida...")
         finally:
             process.stdout.close()
+            if self._cancel_requested.is_set() and process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:  # pragma: no cover
+                    process.kill()
+                    process.wait()
             with self._process_lock:
                 if self._active_process is process:
                     self._active_process = None
+
+        if cancelled or self._cancel_requested.is_set():
+            raise SplitCancelledError("Conversion cancelada por el usuario.")
 
         return_code = process.wait()
         if self._cancel_requested.is_set() or return_code in {-15, -9}:  # pragma: no cover
