@@ -6,7 +6,7 @@ import queue
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -72,6 +72,24 @@ TEXTS = {
         "split_video": "Dividir Video",
         "cancel": "Cancelar",
         "configure_ffmpeg": "Configurar FFmpeg...",
+        "exit": "Salir",
+        "menu_file": "Archivo",
+        "menu_help": "Ayuda",
+        "menu_about": "Acerca de",
+        "menu_open_video": "Abrir video",
+        "menu_open_output": "Abrir carpeta salida",
+        "menu_start": "Iniciar conversion",
+        "menu_cancel": "Cancelar conversion",
+        "menu_exit": "Salir",
+        "about_title": "Acerca de",
+        "about_text": "VideoSplitter\nCreado por Synyster Rick\n2026 Derechos Reservados",
+        "status_invalid_config": "Configuracion invalida",
+        "status_missing_ffmpeg": "FFmpeg no configurado. Selecciona ffmpeg.exe para continuar.",
+        "status_ffmpeg_path_invalid": "El archivo seleccionado no parece ser ffmpeg.exe.",
+        "status_completed": "Proceso completado",
+        "status_error": "El proceso termino con error",
+        "status_canceled": "Conversion cancelada por el usuario",
+        "status_starting": "Iniciando proceso...",
         "status_ffmpeg_set": "FFmpeg configurado",
         "status_ffmpeg_auto": "FFmpeg incluido automaticamente",
         "status_mode_equal": "partes iguales",
@@ -103,6 +121,24 @@ TEXTS = {
         "split_video": "Split Video",
         "cancel": "Cancel",
         "configure_ffmpeg": "Configure FFmpeg...",
+        "exit": "Exit",
+        "menu_file": "File",
+        "menu_help": "Help",
+        "menu_about": "About",
+        "menu_open_video": "Open video",
+        "menu_open_output": "Open output folder",
+        "menu_start": "Start conversion",
+        "menu_cancel": "Cancel conversion",
+        "menu_exit": "Exit",
+        "about_title": "About",
+        "about_text": "VideoSplitter\nCreated by Synyster Rick\n2026 All Rights Reserved",
+        "status_invalid_config": "Invalid configuration",
+        "status_missing_ffmpeg": "FFmpeg is not configured. Select ffmpeg.exe to continue.",
+        "status_ffmpeg_path_invalid": "Selected file does not look like ffmpeg.exe.",
+        "status_completed": "Process completed",
+        "status_error": "Process finished with error",
+        "status_canceled": "Conversion canceled by user",
+        "status_starting": "Starting process...",
         "status_ffmpeg_set": "FFmpeg configured",
         "status_ffmpeg_auto": "Bundled FFmpeg enabled",
         "status_mode_equal": "equal parts",
@@ -171,6 +207,8 @@ class VideoSplitterApp:
 
         self._configure_styles()
 
+        self._build_menu()
+        self._bind_shortcuts()
         self._build_layout()
         self.root.after(self._POLL_INTERVAL_MS, self._flush_events)
 
@@ -311,7 +349,7 @@ class VideoSplitterApp:
 
         actions_frame = ttk.Frame(progress_card, style="Card.TFrame")
         actions_frame.grid(row=3, column=0, sticky="ew")
-        actions_frame.columnconfigure((0, 1, 2), weight=1)
+        actions_frame.columnconfigure((0, 1, 2, 3), weight=1)
 
         self.start_button = ttk.Button(
             actions_frame,
@@ -336,6 +374,13 @@ class VideoSplitterApp:
             command=self._configure_ffmpeg,
         )
         self.ffmpeg_button.grid(row=0, column=2, sticky="ew", padx=(8, 0))
+
+        self.exit_button = ttk.Button(
+            actions_frame,
+            text=self._t("exit"),
+            command=self._exit_app,
+        )
+        self.exit_button.grid(row=0, column=3, sticky="ew", padx=(8, 0))
 
         ttk.Label(right_panel, text=self._t("split_mode"), style="Field.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
         split_mode_frame = ttk.Frame(right_panel, style="Card.TFrame")
@@ -441,6 +486,46 @@ class VideoSplitterApp:
         ]
         self._sync_split_mode_controls()
 
+    def _build_menu(self) -> None:
+        menu_bar = tk.Menu(self.root)
+
+        file_menu = tk.Menu(menu_bar, tearoff=0)
+        file_menu.add_command(label=self._t("menu_open_video"), accelerator="Ctrl+O", command=self._select_video)
+        file_menu.add_command(label=self._t("menu_open_output"), accelerator="Ctrl+L", command=self._select_output_dir)
+        file_menu.add_separator()
+        file_menu.add_command(label=self._t("menu_start"), accelerator="F5", command=self._start_job)
+        file_menu.add_command(label=self._t("menu_cancel"), accelerator="Esc", command=self._cancel_job)
+        file_menu.add_separator()
+        file_menu.add_command(label=self._t("menu_exit"), accelerator="Ctrl+Q", command=self._exit_app)
+
+        help_menu = tk.Menu(menu_bar, tearoff=0)
+        help_menu.add_command(label=self._t("menu_about"), accelerator="F1", command=self._open_about_window)
+
+        menu_bar.add_cascade(label=self._t("menu_file"), menu=file_menu)
+        menu_bar.add_cascade(label=self._t("menu_help"), menu=help_menu)
+        self.root.configure(menu=menu_bar)
+
+    def _bind_shortcuts(self) -> None:
+        self.root.bind("<Control-o>", lambda _event: self._select_video())
+        self.root.bind("<Control-l>", lambda _event: self._select_output_dir())
+        self.root.bind("<Control-q>", lambda _event: self._exit_app())
+        self.root.bind("<F5>", lambda _event: self._start_job())
+        self.root.bind("<Escape>", lambda _event: self._cancel_job())
+        self.root.bind("<F1>", lambda _event: self._open_about_window())
+
+    def _open_about_window(self) -> None:
+        about = tk.Toplevel(self.root)
+        about.title(self._t("about_title"))
+        about.transient(self.root)
+        about.resizable(False, False)
+        container = ttk.Frame(about, padding=14, style="Card.TFrame")
+        container.pack(fill="both", expand=True)
+        ttk.Label(container, text=self._t("about_text"), style="Field.TLabel", justify="left").pack(anchor="w")
+
+    def _exit_app(self) -> None:
+        self._cancel_job()
+        self.root.destroy()
+
     def _on_language_changed(self, _event: tk.Event[tk.Misc]) -> None:
         if self._worker and self._worker.is_alive():
             return
@@ -453,6 +538,7 @@ class VideoSplitterApp:
 
         for child in self.root.winfo_children():
             child.destroy()
+        self._build_menu()
         self._configure_styles()
         self._build_layout()
         self.status_var.set(self._initial_status_text())
@@ -660,13 +746,8 @@ class VideoSplitterApp:
         ffmpeg_path = Path(selected).resolve()
         name = ffmpeg_path.name.lower()
         if "ffmpeg" not in name:
-            should_continue = messagebox.askyesno(
-                "Confirmacion",
-                "El archivo no parece ser ffmpeg.exe.\nDeseas usarlo de todas formas?",
-                parent=self.root,
-            )
-            if not should_continue:
-                return False
+            self.status_var.set(self._t("status_ffmpeg_path_invalid"))
+            return False
 
         ffprobe_path = ffmpeg_path.with_name("ffprobe.exe")
         save_ffmpeg_settings(
@@ -688,11 +769,11 @@ class VideoSplitterApp:
         try:
             config = self._build_config()
         except VideoSplitterError as exc:
-            messagebox.showerror("Configuracion invalida", str(exc), parent=self.root)
+            self.status_var.set(f"{self._t('status_invalid_config')}: {exc}")
             return
 
         self.progress_var.set(0.0)
-        self.status_var.set("Iniciando proceso...")
+        self.status_var.set(self._t("status_starting"))
         self._set_running_state(True)
 
         self._worker = threading.Thread(
@@ -819,26 +900,11 @@ class VideoSplitterApp:
     def _handle_missing_ffmpeg(self, error_message: str) -> None:
         self._stop_progress_animation()
         self._set_running_state(False)
-        self.status_var.set("FFmpeg no esta configurado.")
-
-        ask_to_select = messagebox.askyesno(
-            "FFmpeg no encontrado",
-            f"{error_message}\n\nQuieres seleccionar ffmpeg.exe ahora?",
-            parent=self.root,
-        )
-        if not ask_to_select:
-            return
+        self.status_var.set(f"{self._t('status_missing_ffmpeg')} ({error_message})")
 
         if not self._prompt_and_save_ffmpeg():
             return
-
-        should_retry = messagebox.askyesno(
-            "Reintentar",
-            "FFmpeg fue guardado.\nDeseas reintentar la division ahora?",
-            parent=self.root,
-        )
-        if should_retry:
-            self._start_job()
+        self._start_job()
 
     def _update_progress(self, percent: float | None, message: str) -> None:
         if percent is None:
@@ -866,25 +932,18 @@ class VideoSplitterApp:
         self.processed_percent_var.set("Procesado: 100.0%")
         self.pending_percent_var.set("Pendiente: 0.0%")
         self.status_var.set(
-            f"Proceso completado. Archivos generados: {len(files)}. "
+            f"{self._t('status_completed')}. Archivos generados: {len(files)}. "
             f"Formato: {self._selected_format_label()}. "
             f"Procesamiento: {self._selected_processing_label()}"
         )
         self._set_running_state(False)
-
-        messagebox.showinfo(
-            "Completado",
-            f"Se generaron {len(files)} parte(s) en:\n{files[0].parent if files else self.output_var.get()}",
-            parent=self.root,
-        )
 
     def _finish_with_error(self, error_message: str) -> None:
         self._stop_progress_animation()
         self._set_running_state(False)
         self.processed_percent_var.set(f"Procesado: {self.progress_var.get():.1f}%")
         self.pending_percent_var.set(f"Pendiente: {max(100.0 - self.progress_var.get(), 0.0):.1f}%")
-        self.status_var.set("El proceso termino con error.")
-        messagebox.showerror("Error", error_message, parent=self.root)
+        self.status_var.set(f"{self._t('status_error')}: {error_message}")
 
     def _finish_with_cancellation(self, message: str) -> None:
         self._stop_progress_animation()
@@ -892,8 +951,7 @@ class VideoSplitterApp:
         current = max(0.0, min(self.progress_var.get(), 100.0))
         self.processed_percent_var.set(f"Procesado: {current:.1f}%")
         self.pending_percent_var.set(f"Pendiente: {max(100.0 - current, 0.0):.1f}%")
-        self.status_var.set("Conversion cancelada por el usuario.")
-        messagebox.showinfo("Cancelado", message or "Conversion cancelada por el usuario.", parent=self.root)
+        self.status_var.set(message or self._t("status_canceled"))
 
     def _stop_progress_animation(self) -> None:
         if self._progress_indeterminate:

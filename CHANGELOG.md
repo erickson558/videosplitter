@@ -1,5 +1,18 @@
 # Changelog
 
+## V1.5.1 - 2026-04-07
+
+- Release message: fix: add windows-style menu shortcuts, exit button, and non-intrusive GUI notifications
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.5.0...v1.5.1
+
+### Fixes
+- fix: add menu bar with Windows-style accelerators for key actions (open, start, cancel, exit, about)
+- fix: add explicit Exit button in main action row
+- fix: remove tkinter messagebox usage from operational flow and use status-based feedback
+
+### Validation
+- test: run full regression suite after GUI behavior updates (25 tests)
+
 ## V1.5.0 - 2026-04-07
 
 - Release message: feat: add NVIDIA+AMD hybrid multiprocess encoding mode
