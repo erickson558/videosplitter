@@ -178,6 +178,35 @@ class VideoSplitterServiceTests(unittest.TestCase):
         self.assertIn("gpu_all", option_map)
         self.assertIn("any", option_map["gpu_all"].lower())
 
+    def test_detect_processing_options_includes_hybrid_when_nvenc_and_amf_with_mixed_adapters(self) -> None:
+        with patch.object(
+            VideoSplitterService,
+            "_read_encoders_output",
+            return_value="V..... h264_nvenc\nV..... h264_amf\n",
+        ):
+            with patch.object(VideoSplitterService, "_detect_nvidia_gpus", return_value=[(0, "RTX 2050")]):
+                with patch.object(
+                    VideoSplitterService,
+                    "_detect_display_adapters",
+                    return_value=["NVIDIA GeForce RTX 2050", "AMD Radeon(TM) Graphics"],
+                ):
+                    options = VideoSplitterService.detect_processing_options(Path("ffmpeg.exe"))
+
+        option_keys = [item[0] for item in options]
+        self.assertIn("gpu_hybrid", option_keys)
+
+    def test_segment_ranges_for_seconds_mode(self) -> None:
+        config = SplitJobConfig(
+            input_video=Path("video.mp4"),
+            output_dir=Path("out"),
+            split_mode=SECONDS_SPLIT_MODE,
+            segment_seconds=30,
+        )
+
+        segments = self.service._segment_ranges(config, 95.0)
+
+        self.assertEqual(segments, [(1, 0.0, 30.0), (2, 30.0, 60.0), (3, 60.0, 90.0), (4, 90.0, 95.0)])
+
     def test_select_video_encoder_prefers_nvenc_then_qsv_then_amf(self) -> None:
         selected_nvenc = self.service._select_video_encoder(" V..... h264_qsv\n V..... h264_nvenc\n")
         selected_qsv = self.service._select_video_encoder(" V..... h264_qsv\n")
@@ -206,6 +235,7 @@ class VideoSplitterServiceTests(unittest.TestCase):
         process = DummyProcess()
         with self.service._process_lock:
             self.service._active_process = process
+            self.service._active_processes = {process}
 
         self.assertTrue(self.service.cancel_current_job())
         self.assertTrue(process._terminated)

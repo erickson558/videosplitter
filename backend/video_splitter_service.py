@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import os
 import re
 import subprocess
@@ -16,6 +17,7 @@ from .models import (
     PROCESSING_DEVICE_AUTO,
     PROCESSING_DEVICE_CPU,
     PROCESSING_DEVICE_GPU_ALL,
+    PROCESSING_DEVICE_GPU_HYBRID,
     PROCESSING_DEVICE_GPU_AMF,
     PROCESSING_DEVICE_GPU_QSV,
     SplitJobConfig,
@@ -61,21 +63,22 @@ class VideoSplitterService:
         self._cancel_requested = threading.Event()
         self._process_lock = threading.Lock()
         self._active_process: subprocess.Popen[str] | None = None
+        self._active_processes: set[subprocess.Popen[str]] = set()
 
     def cancel_current_job(self) -> bool:
         """Request cancellation and terminate an active FFmpeg process when possible."""
         self._cancel_requested.set()
         with self._process_lock:
-            process = self._active_process
+            processes = list(self._active_processes)
 
-        if process is None:
-            return False
+        terminated_any = False
+        for process in processes:
+            if process.poll() is not None:
+                continue
+            process.terminate()
+            terminated_any = True
 
-        if process.poll() is not None:
-            return False
-
-        process.terminate()
-        return True
+        return terminated_any
 
     @classmethod
     def detect_processing_options(cls, ffmpeg_path: Path | None = None) -> list[tuple[str, str]]:
@@ -108,6 +111,14 @@ class VideoSplitterService:
             else:
                 options.append((PROCESSING_DEVICE_GPU_ALL, "GPU NVIDIA (todas/any)"))
 
+        if (
+            "h264_nvenc" in available
+            and "h264_amf" in available
+            and any("nvidia" in name.lower() for name in adapters)
+            and any(token in name.lower() for name in adapters for token in ("amd", "radeon"))
+        ):
+            options.append((PROCESSING_DEVICE_GPU_HYBRID, "GPU Hibrido NVIDIA + AMD (multiproceso)"))
+
         if "h264_qsv" in available and has_intel_gpu:
             intel_name = cls._first_adapter_match(adapters, ("intel",))
             options.append((PROCESSING_DEVICE_GPU_QSV, f"GPU Intel QSV ({intel_name})"))
@@ -134,6 +145,21 @@ class VideoSplitterService:
                 progress_callback(None, "No se pudo leer la duracion exacta del video.")
 
         self._raise_if_cancel_requested()
+
+        if validated.processing_device == PROCESSING_DEVICE_GPU_HYBRID:
+            if not self._can_use_hybrid_gpu_mode():
+                if progress_callback:
+                    progress_callback(
+                        None,
+                        "Modo hibrido no disponible en este entorno. Se continuara en modo automatico.",
+                    )
+            elif duration_seconds and duration_seconds > 0:
+                return self._split_video_hybrid_multi_gpu(validated, duration_seconds, progress_callback)
+            elif progress_callback:
+                progress_callback(
+                    None,
+                    "No se pudo leer la duracion para modo hibrido; se usara flujo estandar.",
+                )
 
         output_pattern = (
             validated.output_dir
@@ -326,6 +352,13 @@ class VideoSplitterService:
         if processing_device == PROCESSING_DEVICE_AUTO:
             return self._preferred_video_encoder
 
+        if processing_device == PROCESSING_DEVICE_GPU_HYBRID:
+            if "h264_nvenc" in self._available_h264_encoders:
+                return "h264_nvenc"
+            if "h264_amf" in self._available_h264_encoders:
+                return "h264_amf"
+            return "libx264"
+
         return "libx264"
 
     @staticmethod
@@ -470,8 +503,7 @@ class VideoSplitterService:
             bufsize=1,
             **_hidden_process_kwargs(),
         )
-        with self._process_lock:
-            self._active_process = process
+        self._register_process(process)
 
         if process.stdout is None:
             raise SplitExecutionError("No se pudo leer la salida de FFmpeg.")
@@ -515,9 +547,7 @@ class VideoSplitterService:
                 except subprocess.TimeoutExpired:  # pragma: no cover
                     process.kill()
                     process.wait()
-            with self._process_lock:
-                if self._active_process is process:
-                    self._active_process = None
+            self._unregister_process(process)
 
         if cancelled or self._cancel_requested.is_set():
             raise SplitCancelledError("Conversion cancelada por el usuario.")
@@ -630,3 +660,232 @@ class VideoSplitterService:
     @staticmethod
     def _format_ffmpeg_seconds(total_seconds: float) -> str:
         return f"{max(total_seconds, 0.001):.6f}".rstrip("0").rstrip(".")
+
+    def _register_process(self, process: subprocess.Popen[str]) -> None:
+        with self._process_lock:
+            self._active_process = process
+            self._active_processes.add(process)
+
+    def _unregister_process(self, process: subprocess.Popen[str]) -> None:
+        with self._process_lock:
+            self._active_processes.discard(process)
+            if self._active_process is process:
+                self._active_process = next(iter(self._active_processes), None)
+
+    def _can_use_hybrid_gpu_mode(self) -> bool:
+        if "h264_nvenc" not in self._available_h264_encoders:
+            return False
+        if "h264_amf" not in self._available_h264_encoders:
+            return False
+
+        adapters = self._detect_display_adapters()
+        has_nvidia = any("nvidia" in name.lower() for name in adapters)
+        has_amd = any(token in name.lower() for name in adapters for token in ("amd", "radeon"))
+        return has_nvidia and has_amd
+
+    def _split_video_hybrid_multi_gpu(
+        self,
+        config: SplitJobConfig,
+        duration_seconds: float,
+        progress_callback: ProgressCallback | None,
+    ) -> list[Path]:
+        if progress_callback:
+            progress_callback(0.0, "Modo hibrido activo: procesando segmentos en NVIDIA y AMD...")
+
+        segments = self._segment_ranges(config, duration_seconds)
+        if not segments:
+            raise SplitExecutionError("No se pudieron construir segmentos para el modo hibrido.")
+
+        self._remove_existing_output_parts(config)
+
+        tasks: list[tuple[int, float, float, str, str]] = []
+        device_cycle = [
+            ("h264_nvenc", PROCESSING_DEVICE_GPU_ALL),
+            ("h264_amf", PROCESSING_DEVICE_GPU_AMF),
+        ]
+        for idx, (segment_index, start_seconds, end_seconds) in enumerate(segments):
+            encoder, processing_device = device_cycle[idx % len(device_cycle)]
+            tasks.append((segment_index, start_seconds, end_seconds, encoder, processing_device))
+
+        completed = 0
+        completed_lock = threading.Lock()
+        total = len(tasks)
+
+        def run_task(task: tuple[int, float, float, str, str]) -> Path:
+            nonlocal completed
+            self._raise_if_cancel_requested()
+            segment_index, start_seconds, end_seconds, encoder, processing_device = task
+            output_file = config.output_dir / f"{config.safe_output_stem} Parte {segment_index}{config.output_extension}"
+
+            command = self._build_single_segment_command(
+                config,
+                start_seconds,
+                end_seconds,
+                output_file,
+                video_encoder=encoder,
+                processing_device=processing_device,
+            )
+            self._run_ffmpeg_without_progress(command)
+
+            with completed_lock:
+                completed += 1
+                if progress_callback:
+                    percent = min((completed / total) * 99.5, 99.5)
+                    progress_callback(percent, f"Modo hibrido: segmento {completed}/{total} completado")
+
+            return output_file
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [executor.submit(run_task, task) for task in tasks]
+                output_parts = [future.result() for future in futures]
+        except SplitCancelledError:
+            raise
+        except Exception as exc:
+            self.cancel_current_job()
+            raise SplitExecutionError(f"Error en modo hibrido multiproceso: {exc}") from exc
+
+        if not output_parts:
+            raise SplitExecutionError("Modo hibrido finalizo sin generar archivos.")
+
+        output_parts = [part for part in output_parts if part.exists()]
+        output_parts.sort(key=lambda path: int(path.stem.split(" Parte ")[-1]))
+
+        if progress_callback:
+            progress_callback(100.0, f"Completado en modo hibrido: {len(output_parts)} partes generadas.")
+
+        return output_parts
+
+    def _segment_ranges(self, config: SplitJobConfig, duration_seconds: float) -> list[tuple[int, float, float]]:
+        if duration_seconds <= 0:
+            return []
+
+        boundaries: list[float]
+        if config.split_mode == EQUAL_PARTS_SPLIT_MODE:
+            split_points = self._build_split_points(config, duration_seconds) or []
+            boundaries = [0.0, *split_points, duration_seconds]
+        else:
+            boundaries = [0.0]
+            segment_seconds = float(config.segment_seconds)
+            current = segment_seconds
+            while current < duration_seconds:
+                boundaries.append(current)
+                current += segment_seconds
+            boundaries.append(duration_seconds)
+
+        segments: list[tuple[int, float, float]] = []
+        for index in range(len(boundaries) - 1):
+            start_seconds = max(boundaries[index], 0.0)
+            end_seconds = max(boundaries[index + 1], start_seconds)
+            if end_seconds - start_seconds < 0.05:
+                continue
+            segments.append((index + 1, start_seconds, end_seconds))
+        return segments
+
+    def _build_single_segment_command(
+        self,
+        config: SplitJobConfig,
+        start_seconds: float,
+        end_seconds: float,
+        output_file: Path,
+        video_encoder: str,
+        processing_device: str,
+    ) -> list[str]:
+        profile = config.output_profile
+        segment_length = max(end_seconds - start_seconds, 0.05)
+        gop = profile.fps * 2
+
+        command = [
+            str(self.ffmpeg_path),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-ss",
+            self._format_ffmpeg_seconds(start_seconds),
+            "-i",
+            str(config.input_video),
+            "-t",
+            self._format_ffmpeg_seconds(segment_length),
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a?",
+        ]
+
+        if profile.width is not None and profile.height is not None:
+            video_filter = (
+                f"scale={profile.width}:{profile.height}:force_original_aspect_ratio=increase,"
+                f"crop={profile.width}:{profile.height},setsar=1"
+            )
+            command.extend(["-vf", video_filter])
+
+        command.extend(["-r", str(profile.fps)])
+        command.extend(self._video_encoder_args(video_encoder, processing_device))
+        command.extend(
+            [
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-ar",
+                "48000",
+                "-g",
+                str(gop),
+                "-keyint_min",
+                str(gop),
+                "-sc_threshold",
+                "0",
+            ]
+        )
+
+        if config.container_profile.muxer in {"mp4", "mov"}:
+            command.extend(["-movflags", "+faststart"])
+
+        command.append(str(output_file))
+        return command
+
+    def _run_ffmpeg_without_progress(self, command: list[str]) -> None:
+        self._raise_if_cancel_requested()
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            **_hidden_process_kwargs(),
+        )
+        self._register_process(process)
+
+        error_lines: list[str] = []
+        try:
+            if process.stdout is not None:
+                for raw_line in process.stdout:
+                    if self._cancel_requested.is_set():
+                        break
+                    line = raw_line.strip()
+                    if line:
+                        error_lines.append(line)
+                process.stdout.close()
+
+            if self._cancel_requested.is_set() and process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:  # pragma: no cover
+                    process.kill()
+                    process.wait()
+        finally:
+            self._unregister_process(process)
+
+        if self._cancel_requested.is_set():
+            raise SplitCancelledError("Conversion cancelada por el usuario.")
+
+        return_code = process.wait()
+        if return_code != 0:
+            details = "\n".join(error_lines[-10:]).strip()
+            raise SplitExecutionError(details or f"FFmpeg termino con codigo {return_code}.")

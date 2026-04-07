@@ -20,6 +20,8 @@ from backend.models import (
     DEFAULT_PROCESSING_DEVICE,
     DEFAULT_SPLIT_MODE,
     EQUAL_PARTS_SPLIT_MODE,
+    PROCESSING_DEVICE_GPU_ALL,
+    PROCESSING_DEVICE_GPU_HYBRID,
     SECONDS_SPLIT_MODE,
     SplitJobConfig,
 )
@@ -529,6 +531,10 @@ class VideoSplitterApp:
                 label = "Auto (GPU if available, otherwise CPU)" if self.language_var.get() == "en" else "Automatico (GPU si existe, sino CPU)"
             elif value == "cpu":
                 label = "CPU only" if self.language_var.get() == "en" else "Solo CPU"
+            elif value == PROCESSING_DEVICE_GPU_ALL:
+                label = "NVIDIA GPU (all/any)" if self.language_var.get() == "en" else "GPU NVIDIA (todas/any)"
+            elif value == PROCESSING_DEVICE_GPU_HYBRID:
+                label = "Hybrid GPU NVIDIA + AMD (multiprocess)" if self.language_var.get() == "en" else "GPU Hibrido NVIDIA + AMD (multiproceso)"
             else:
                 label = raw_label
             labels.append(label)

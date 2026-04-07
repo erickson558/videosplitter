@@ -1,5 +1,18 @@
 # Changelog
 
+## V1.5.0 - 2026-04-07
+
+- Release message: feat: add NVIDIA+AMD hybrid multiprocess encoding mode
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.4.0...v1.5.0
+
+### Features
+- feat: add new processing option in GUI for hybrid NVIDIA+AMD multiprocess encoding
+- feat: distribute video segments across NVENC and AMF encoders in parallel when both are available
+- feat: keep cancellation behavior and safe fallback to standard flow when hybrid mode cannot be used
+
+### Tests
+- test: add coverage for hybrid option detection and segment range generation in multiprocess mode
+
 ## V1.4.0 - 2026-04-07
 
 - Release message: feat: add bilingual GUI support and all-GPU NVENC mode

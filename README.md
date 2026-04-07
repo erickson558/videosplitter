@@ -1,4 +1,4 @@
-# VideoSplitter V1.4.0
+# VideoSplitter V1.5.0
 
 [![CI](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml/badge.svg)](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/erickson558/videosplitter?label=release)](https://github.com/erickson558/videosplitter/releases)
@@ -42,6 +42,7 @@
 | Fallback automatico | Si la GPU falla en tiempo de ejecucion, reintenta con CPU sin interrumpir al usuario |
 | Seleccion por GPU instalada | Detecta adaptadores NVIDIA/Intel/AMD instalados y muestra opciones compatibles en la GUI |
 | Modo todas las GPU NVIDIA | Permite usar `-gpu any` para que FFmpeg use cualquier GPU NVIDIA disponible |
+| Modo multiproceso NVIDIA+AMD | Reparte segmentos entre NVENC y AMF en paralelo para aprovechar dos GPUs en el mismo trabajo |
 | Multiidioma GUI | Selector de idioma con soporte Espanol/English y persistencia automatica |
 | Selector de GPU | ComboBox para elegir dispositivo: auto, CPU, GPU especifica por indice, QSV o AMF |
 | Arrastrar y soltar | Permite cargar video arrastrando el archivo a la zona de drop de la ventana |
