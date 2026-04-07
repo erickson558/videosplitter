@@ -123,6 +123,29 @@ class VideoSplitterServiceTests(unittest.TestCase):
             self.assertIn("-gpu", command)
             self.assertIn("1", command)
 
+    def test_build_command_uses_gpu_any_for_all_gpu_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_video = Path(temp_dir) / "video.mp4"
+            output_dir = Path(temp_dir)
+            input_video.write_bytes(b"video")
+            config = SplitJobConfig(
+                input_video=input_video,
+                output_dir=output_dir,
+                split_mode=SECONDS_SPLIT_MODE,
+                segment_seconds=30,
+                processing_device="gpu_all",
+            )
+
+            command = self.service._build_command(
+                config,
+                output_dir / "video Parte %d.mp4",
+                None,
+                video_encoder="h264_nvenc",
+            )
+
+            gpu_index = command.index("-gpu")
+            self.assertEqual(command[gpu_index + 1], "any")
+
     def test_detect_processing_options_without_ffmpeg_returns_safe_defaults(self) -> None:
         options = VideoSplitterService.detect_processing_options(Path("missing_ffmpeg.exe"))
         option_keys = [item[0] for item in options]
@@ -153,7 +176,7 @@ class VideoSplitterServiceTests(unittest.TestCase):
 
         option_map = dict(options)
         self.assertIn("gpu_all", option_map)
-        self.assertIn("detectada", option_map["gpu_all"].lower())
+        self.assertIn("any", option_map["gpu_all"].lower())
 
     def test_select_video_encoder_prefers_nvenc_then_qsv_then_amf(self) -> None:
         selected_nvenc = self.service._select_video_encoder(" V..... h264_qsv\n V..... h264_nvenc\n")

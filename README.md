@@ -1,4 +1,4 @@
-# VideoSplitter V1.3.2
+# VideoSplitter V1.4.0
 
 [![CI](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml/badge.svg)](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/erickson558/videosplitter?label=release)](https://github.com/erickson558/videosplitter/releases)
@@ -41,6 +41,8 @@
 | Aceleracion por hardware | Detecta y usa GPU NVIDIA (NVENC), Intel (QSV) o AMD (AMF) automaticamente |
 | Fallback automatico | Si la GPU falla en tiempo de ejecucion, reintenta con CPU sin interrumpir al usuario |
 | Seleccion por GPU instalada | Detecta adaptadores NVIDIA/Intel/AMD instalados y muestra opciones compatibles en la GUI |
+| Modo todas las GPU NVIDIA | Permite usar `-gpu any` para que FFmpeg use cualquier GPU NVIDIA disponible |
+| Multiidioma GUI | Selector de idioma con soporte Espanol/English y persistencia automatica |
 | Selector de GPU | ComboBox para elegir dispositivo: auto, CPU, GPU especifica por indice, QSV o AMF |
 | Arrastrar y soltar | Permite cargar video arrastrando el archivo a la zona de drop de la ventana |
 | Cancelacion segura | Boton para cancelar la conversion liberando el proceso FFmpeg activo |
@@ -164,7 +166,8 @@ El archivo `videosplitter.settings.json` se crea automaticamente y guarda:
 
 ```json
 {
-  "app_version": "1.3.2",
+  "app_version": "1.4.0",
+  "language": "es",
   "input_video": "C:/Users/.../Videos/origen.mp4",
   "split_mode": "seconds",
   "segment_seconds": 60,
@@ -180,6 +183,7 @@ El archivo `videosplitter.settings.json` se crea automaticamente y guarda:
 | Campo | Descripcion |
 |---|---|
 | `app_version` | Version de la app que genero este archivo |
+| `language` | Idioma de la GUI (`es` o `en`) |
 | `input_video` | Ultimo archivo de video seleccionado en la GUI |
 | `split_mode` | `seconds` o `equal_parts` |
 | `segment_seconds` | Segundos por segmento (modo `seconds`) |

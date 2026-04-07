@@ -1,5 +1,18 @@
 # Changelog
 
+## V1.4.0 - 2026-04-07
+
+- Release message: feat: add bilingual GUI support and all-GPU NVENC mode
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.3.2...v1.4.0
+
+### Features
+- feat: add multilingual GUI support (Espanol/English) with persisted language preference
+- feat: add explicit NVIDIA all-GPU mode using `-gpu any` for FFmpeg NVENC
+
+### Tests
+- test: extend settings tests for language persistence
+- test: add command generation test for NVENC all-GPU mode
+
 ## V1.3.2 - 2026-04-07
 
 - Release message: fix: improve right-panel label readability and prevent option clipping

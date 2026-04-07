@@ -100,13 +100,13 @@ class VideoSplitterService:
         if "h264_nvenc" in available:
             nvidia_gpus = cls._detect_nvidia_gpus()
             if nvidia_gpus:
-                options.append((PROCESSING_DEVICE_GPU_ALL, f"GPU NVIDIA (todas: {len(nvidia_gpus)})"))
+                options.append((PROCESSING_DEVICE_GPU_ALL, f"GPU NVIDIA (todas/any: {len(nvidia_gpus)})"))
                 for index, name in nvidia_gpus:
                     options.append((f"gpu_{index}", f"GPU NVIDIA {index}: {name}"))
             elif any("nvidia" in name.lower() for name in adapters):
-                options.append((PROCESSING_DEVICE_GPU_ALL, "GPU NVIDIA (detectada)"))
+                options.append((PROCESSING_DEVICE_GPU_ALL, "GPU NVIDIA (todas/any)"))
             else:
-                options.append((PROCESSING_DEVICE_GPU_ALL, "GPU NVIDIA (auto)"))
+                options.append((PROCESSING_DEVICE_GPU_ALL, "GPU NVIDIA (todas/any)"))
 
         if "h264_qsv" in available and has_intel_gpu:
             intel_name = cls._first_adapter_match(adapters, ("intel",))
@@ -332,6 +332,9 @@ class VideoSplitterService:
     def _video_encoder_args(video_encoder: str, processing_device: str) -> list[str]:
         if video_encoder == "h264_nvenc":
             args = ["-c:v", "h264_nvenc", "-preset", "p5", "-cq", "20"]
+            if processing_device == PROCESSING_DEVICE_GPU_ALL:
+                args.extend(["-gpu", "any"])
+                return args
             if processing_device.startswith("gpu_") and processing_device not in {
                 PROCESSING_DEVICE_GPU_ALL,
                 PROCESSING_DEVICE_GPU_QSV,

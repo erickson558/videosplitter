@@ -3,6 +3,6 @@
 from __future__ import annotations
 
 APP_NAME = "VideoSplitter"
-APP_VERSION = "1.3.2"
+APP_VERSION = "1.4.0"
 APP_DISPLAY_VERSION = f"V{APP_VERSION}"
 APP_TITLE = f"{APP_NAME} {APP_DISPLAY_VERSION}"

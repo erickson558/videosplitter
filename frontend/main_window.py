@@ -41,6 +41,75 @@ from backend.video_splitter_service import VideoSplitterService
 
 
 SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".m4v", ".webm"}
+SUPPORTED_LANGUAGES = ("es", "en")
+LANGUAGE_NAMES = {
+    "es": "Espanol",
+    "en": "English",
+}
+TEXTS = {
+    "es": {
+        "subtitle": "Divide videos con precision, GPU seleccionable y control total del proceso.",
+        "section_origin": "Origen y Salida",
+        "section_config": "Configuracion",
+        "video_file": "Archivo de video",
+        "browse": "Buscar...",
+        "drop_here": "Suelta aqui tu archivo de video",
+        "allowed_formats": "Formato permitido: MP4, MKV, MOV, AVI, WMV, FLV, M4V, WEBM",
+        "output_folder": "Carpeta de salida",
+        "folder": "Carpeta...",
+        "split_mode": "Modo de division",
+        "mode_seconds": "Por segundos",
+        "mode_equal": "Partes iguales",
+        "seconds_per_part": "Segundos por parte",
+        "parts_count": "Cantidad de partes",
+        "video_profile": "Perfil de video",
+        "container": "Contenedor",
+        "processing": "Procesamiento",
+        "language": "Idioma",
+        "tip_gpu": "Tip: selecciona GPU concreta para forzar dispositivo en equipos multi-GPU.",
+        "split_video": "Dividir Video",
+        "cancel": "Cancelar",
+        "configure_ffmpeg": "Configurar FFmpeg...",
+        "status_ffmpeg_set": "FFmpeg configurado",
+        "status_ffmpeg_auto": "FFmpeg incluido automaticamente",
+        "status_mode_equal": "partes iguales",
+        "status_mode_seconds": "por segundos",
+        "status_mode": "Modo",
+        "status_active_format": "Formato activo",
+        "status_processing": "Procesamiento",
+    },
+    "en": {
+        "subtitle": "Split videos with precision, selectable GPU, and full process control.",
+        "section_origin": "Input and Output",
+        "section_config": "Settings",
+        "video_file": "Video file",
+        "browse": "Browse...",
+        "drop_here": "Drop your video file here",
+        "allowed_formats": "Allowed formats: MP4, MKV, MOV, AVI, WMV, FLV, M4V, WEBM",
+        "output_folder": "Output folder",
+        "folder": "Folder...",
+        "split_mode": "Split mode",
+        "mode_seconds": "By seconds",
+        "mode_equal": "Equal parts",
+        "seconds_per_part": "Seconds per part",
+        "parts_count": "Parts count",
+        "video_profile": "Video profile",
+        "container": "Container",
+        "processing": "Processing",
+        "language": "Language",
+        "tip_gpu": "Tip: select a specific GPU to force device usage on multi-GPU systems.",
+        "split_video": "Split Video",
+        "cancel": "Cancel",
+        "configure_ffmpeg": "Configure FFmpeg...",
+        "status_ffmpeg_set": "FFmpeg configured",
+        "status_ffmpeg_auto": "Bundled FFmpeg enabled",
+        "status_mode_equal": "equal parts",
+        "status_mode_seconds": "by seconds",
+        "status_mode": "Mode",
+        "status_active_format": "Active format",
+        "status_processing": "Processing",
+    },
+}
 
 
 def create_root_window() -> tk.Tk:
@@ -77,6 +146,10 @@ class VideoSplitterApp:
         self.processing_device_var = tk.StringVar(
             value=str(saved_ui_settings.get("processing_device", DEFAULT_PROCESSING_DEVICE))
         )
+        selected_language = str(saved_ui_settings.get("language", "es")).strip().lower()
+        if selected_language not in SUPPORTED_LANGUAGES:
+            selected_language = "es"
+        self.language_var = tk.StringVar(value=selected_language)
 
         self._events: queue.Queue[tuple[str, object]] = queue.Queue()
         self._worker: threading.Thread | None = None
@@ -145,6 +218,22 @@ class VideoSplitterApp:
         style.map("Accent.TButton", background=[("!disabled", "#2a9d8f"), ("active", "#21867a")], foreground=[("!disabled", "#ffffff")])
         style.map("Danger.TButton", background=[("!disabled", "#d1495b"), ("active", "#b23a48")], foreground=[("!disabled", "#ffffff")])
 
+    def _t(self, key: str) -> str:
+        language = self.language_var.get().strip().lower()
+        if language not in SUPPORTED_LANGUAGES:
+            language = "es"
+        return TEXTS.get(language, TEXTS["es"]).get(key, TEXTS["es"].get(key, key))
+
+    def _lang_display_name(self, language_code: str) -> str:
+        return LANGUAGE_NAMES.get(language_code, language_code)
+
+    def _display_name_to_lang(self, display_name: str) -> str:
+        normalized = display_name.strip().lower()
+        for code, name in LANGUAGE_NAMES.items():
+            if normalized == name.lower():
+                return code
+        return "es"
+
     def _build_layout(self) -> None:
         container = ttk.Frame(self.root, padding=10, style="App.TFrame")
         container.pack(fill="both", expand=True)
@@ -156,7 +245,7 @@ class VideoSplitterApp:
         ttk.Label(header, text="VideoSplitter", style="HeaderTitle.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             header,
-            text="Divide videos con precision, GPU seleccionable y control total del proceso.",
+            text=self._t("subtitle"),
             style="HeaderSub.TLabel",
         ).grid(row=1, column=0, sticky="w", pady=(4, 0))
 
@@ -166,36 +255,36 @@ class VideoSplitterApp:
         body.columnconfigure(1, weight=5, minsize=390)
         body.rowconfigure(0, weight=1)
 
-        left_panel = ttk.Labelframe(body, text="Origen y Salida", padding=12, style="Section.TLabelframe")
+        left_panel = ttk.Labelframe(body, text=self._t("section_origin"), padding=12, style="Section.TLabelframe")
         left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         left_panel.columnconfigure(1, weight=1)
 
-        right_panel = ttk.Labelframe(body, text="Configuracion", padding=12, style="Section.TLabelframe")
+        right_panel = ttk.Labelframe(body, text=self._t("section_config"), padding=12, style="Section.TLabelframe")
         right_panel.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
         right_panel.columnconfigure(0, weight=1)
 
-        ttk.Label(left_panel, text="Archivo de video", style="Field.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 6))
+        ttk.Label(left_panel, text=self._t("video_file"), style="Field.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 6))
         video_entry = ttk.Entry(left_panel, textvariable=self.video_var)
         video_entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 10), padx=(0, 10))
-        video_button = ttk.Button(left_panel, text="Buscar...", command=self._select_video)
+        video_button = ttk.Button(left_panel, text=self._t("browse"), command=self._select_video)
         video_button.grid(row=1, column=2, sticky="ew", pady=(0, 10))
 
         self.drop_zone = ttk.Label(
             left_panel,
-            text="Suelta aqui tu archivo de video",
+            text=self._t("drop_here"),
             style="DropZone.TLabel",
             anchor="center",
         )
         self.drop_zone.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(0, 6))
-        ttk.Label(left_panel, text="Formato permitido: MP4, MKV, MOV, AVI, WMV, FLV, M4V, WEBM", style="Hint.TLabel").grid(
+        ttk.Label(left_panel, text=self._t("allowed_formats"), style="Hint.TLabel").grid(
             row=3, column=0, columnspan=3, sticky="w", pady=(0, 12)
         )
         self._register_drop_target()
 
-        ttk.Label(left_panel, text="Carpeta de salida", style="Field.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 6))
+        ttk.Label(left_panel, text=self._t("output_folder"), style="Field.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 6))
         output_entry = ttk.Entry(left_panel, textvariable=self.output_var)
         output_entry.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(0, 12), padx=(0, 10))
-        output_button = ttk.Button(left_panel, text="Carpeta...", command=self._select_output_dir)
+        output_button = ttk.Button(left_panel, text=self._t("folder"), command=self._select_output_dir)
         output_button.grid(row=5, column=2, sticky="ew", pady=(0, 12))
 
         progress_card = ttk.Frame(left_panel, style="Card.TFrame")
@@ -224,7 +313,7 @@ class VideoSplitterApp:
 
         self.start_button = ttk.Button(
             actions_frame,
-            text="Dividir Video",
+            text=self._t("split_video"),
             command=self._start_job,
             style="Accent.TButton",
         )
@@ -232,7 +321,7 @@ class VideoSplitterApp:
 
         self.cancel_button = ttk.Button(
             actions_frame,
-            text="Cancelar",
+            text=self._t("cancel"),
             command=self._cancel_job,
             state="disabled",
             style="Danger.TButton",
@@ -241,18 +330,18 @@ class VideoSplitterApp:
 
         self.ffmpeg_button = ttk.Button(
             actions_frame,
-            text="Configurar FFmpeg...",
+            text=self._t("configure_ffmpeg"),
             command=self._configure_ffmpeg,
         )
         self.ffmpeg_button.grid(row=0, column=2, sticky="ew", padx=(8, 0))
 
-        ttk.Label(right_panel, text="Modo de division", style="Field.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(right_panel, text=self._t("split_mode"), style="Field.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
         split_mode_frame = ttk.Frame(right_panel, style="Card.TFrame")
         split_mode_frame.grid(row=1, column=0, sticky="w", pady=(0, 10))
         split_mode_buttons = [
             ttk.Radiobutton(
                 split_mode_frame,
-                text="Por segundos",
+                text=self._t("mode_seconds"),
                 value=SECONDS_SPLIT_MODE,
                 variable=self.split_mode_var,
                 command=self._on_split_mode_changed,
@@ -260,7 +349,7 @@ class VideoSplitterApp:
             ),
             ttk.Radiobutton(
                 split_mode_frame,
-                text="Partes iguales",
+                text=self._t("mode_equal"),
                 value=EQUAL_PARTS_SPLIT_MODE,
                 variable=self.split_mode_var,
                 command=self._on_split_mode_changed,
@@ -270,15 +359,15 @@ class VideoSplitterApp:
         for index, button in enumerate(split_mode_buttons):
             button.grid(row=0, column=index, sticky="w", padx=(0, 18))
 
-        ttk.Label(right_panel, text="Segundos por parte", style="Field.TLabel").grid(row=2, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(right_panel, text=self._t("seconds_per_part"), style="Field.TLabel").grid(row=2, column=0, sticky="w", pady=(0, 4))
         self.segment_entry = ttk.Entry(right_panel, textvariable=self.segment_var, width=10)
         self.segment_entry.grid(row=3, column=0, sticky="w", pady=(0, 10))
 
-        ttk.Label(right_panel, text="Cantidad de partes", style="Field.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(right_panel, text=self._t("parts_count"), style="Field.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 4))
         self.equal_parts_entry = ttk.Spinbox(right_panel, from_=2, to=999, textvariable=self.equal_parts_var, width=10)
         self.equal_parts_entry.grid(row=5, column=0, sticky="w", pady=(0, 10))
 
-        ttk.Label(right_panel, text="Perfil de video", style="Field.TLabel").grid(row=6, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(right_panel, text=self._t("video_profile"), style="Field.TLabel").grid(row=6, column=0, sticky="w", pady=(0, 4))
         video_profiles_frame = ttk.Frame(right_panel, style="Card.TFrame")
         video_profiles_frame.grid(row=7, column=0, sticky="ew", pady=(0, 10))
         profile_buttons: list[ttk.Radiobutton] = []
@@ -295,7 +384,7 @@ class VideoSplitterApp:
             button.pack(anchor="w")
             profile_buttons.append(button)
 
-        ttk.Label(right_panel, text="Contenedor", style="Field.TLabel").grid(row=8, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(right_panel, text=self._t("container"), style="Field.TLabel").grid(row=8, column=0, sticky="w", pady=(0, 4))
         containers_frame = ttk.Frame(right_panel, style="Card.TFrame")
         containers_frame.grid(row=9, column=0, sticky="ew", pady=(0, 10))
         container_buttons: list[ttk.Radiobutton] = []
@@ -311,17 +400,24 @@ class VideoSplitterApp:
             button.pack(side="left", padx=(0, 16))
             container_buttons.append(button)
 
-        ttk.Label(right_panel, text="Procesamiento", style="Field.TLabel").grid(row=10, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(right_panel, text=self._t("processing"), style="Field.TLabel").grid(row=10, column=0, sticky="w", pady=(0, 4))
         self.processing_combo = ttk.Combobox(right_panel, state="readonly", width=40, style="Picker.TCombobox")
         self.processing_combo.grid(row=11, column=0, sticky="ew", pady=(0, 6))
         self._refresh_processing_combobox()
         self.processing_combo.bind("<<ComboboxSelected>>", self._on_processing_device_changed)
 
+        ttk.Label(right_panel, text=self._t("language"), style="Field.TLabel").grid(row=12, column=0, sticky="w", pady=(0, 4))
+        self.language_combo = ttk.Combobox(right_panel, state="readonly", width=20)
+        self.language_combo.grid(row=13, column=0, sticky="w", pady=(0, 6))
+        self.language_combo.configure(values=[self._lang_display_name(code) for code in SUPPORTED_LANGUAGES])
+        self.language_combo.set(self._lang_display_name(self.language_var.get()))
+        self.language_combo.bind("<<ComboboxSelected>>", self._on_language_changed)
+
         ttk.Label(
             right_panel,
-            text="Tip: selecciona GPU concreta para forzar dispositivo en equipos multi-GPU.",
+            text=self._t("tip_gpu"),
             style="Hint.TLabel",
-        ).grid(row=12, column=0, sticky="w", pady=(0, 0))
+        ).grid(row=14, column=0, sticky="w", pady=(0, 0))
 
         for entry in (output_entry, self.segment_entry, self.equal_parts_entry):
             entry.bind("<FocusOut>", self._persist_ui_settings_event)
@@ -338,9 +434,26 @@ class VideoSplitterApp:
             *profile_buttons,
             *container_buttons,
             self.processing_combo,
+            self.language_combo,
             self.ffmpeg_button,
         ]
         self._sync_split_mode_controls()
+
+    def _on_language_changed(self, _event: tk.Event[tk.Misc]) -> None:
+        if self._worker and self._worker.is_alive():
+            return
+
+        selected_language = self._display_name_to_lang(self.language_combo.get())
+        if selected_language not in SUPPORTED_LANGUAGES:
+            selected_language = "es"
+        self.language_var.set(selected_language)
+        self._persist_ui_settings()
+
+        for child in self.root.winfo_children():
+            child.destroy()
+        self._configure_styles()
+        self._build_layout()
+        self.status_var.set(self._initial_status_text())
 
     def _register_drop_target(self) -> None:
         if DND_FILES is None:
@@ -407,7 +520,21 @@ class VideoSplitterApp:
         self.processing_device_var.set(selected_value)
 
     def _refresh_processing_combobox(self) -> None:
-        labels = [label for _, label in self._processing_options]
+        labels: list[str] = []
+        self._processing_label_to_value = {}
+        self._processing_value_to_label = {}
+
+        for value, raw_label in self._processing_options:
+            if value == "auto":
+                label = "Auto (GPU if available, otherwise CPU)" if self.language_var.get() == "en" else "Automatico (GPU si existe, sino CPU)"
+            elif value == "cpu":
+                label = "CPU only" if self.language_var.get() == "en" else "Solo CPU"
+            else:
+                label = raw_label
+            labels.append(label)
+            self._processing_label_to_value[label] = value
+            self._processing_value_to_label[value] = label
+
         self.processing_combo.configure(values=labels)
         selected_label = self._processing_value_to_label.get(
             self.processing_device_var.get(),
@@ -417,17 +544,17 @@ class VideoSplitterApp:
 
     def _initial_status_text(self) -> str:
         ffmpeg_ready = get_saved_ffmpeg_path() is not None
-        base = "FFmpeg configurado" if ffmpeg_ready else "FFmpeg incluido automaticamente"
+        base = self._t("status_ffmpeg_set") if ffmpeg_ready else self._t("status_ffmpeg_auto")
         return (
-            f"{base}. Modo: {self._selected_split_mode_label()}. "
-            f"Formato activo: {self._selected_format_label()}. "
-            f"Procesamiento: {self._selected_processing_label()}."
+            f"{base}. {self._t('status_mode')}: {self._selected_split_mode_label()}. "
+            f"{self._t('status_active_format')}: {self._selected_format_label()}. "
+            f"{self._t('status_processing')}: {self._selected_processing_label()}."
         )
 
     def _selected_split_mode_label(self) -> str:
         if self.split_mode_var.get() == EQUAL_PARTS_SPLIT_MODE:
-            return "partes iguales"
-        return "por segundos"
+            return self._t("status_mode_equal")
+        return self._t("status_mode_seconds")
 
     def _selected_format_label(self) -> str:
         video_profile = VIDEO_PROFILES.get(self.video_profile_var.get())
@@ -454,8 +581,9 @@ class VideoSplitterApp:
             return
         self._persist_ui_settings()
         self.status_var.set(
-            f"Modo: {self._selected_split_mode_label()}. Formato activo: {self._selected_format_label()}."
-            f" Procesamiento: {self._selected_processing_label()}."
+            f"{self._t('status_mode')}: {self._selected_split_mode_label()}. "
+            f"{self._t('status_active_format')}: {self._selected_format_label()}. "
+            f"{self._t('status_processing')}: {self._selected_processing_label()}."
         )
 
     def _on_split_mode_changed(self) -> None:
@@ -464,8 +592,9 @@ class VideoSplitterApp:
         self._sync_split_mode_controls()
         self._persist_ui_settings()
         self.status_var.set(
-            f"Modo: {self._selected_split_mode_label()}. Formato activo: {self._selected_format_label()}."
-            f" Procesamiento: {self._selected_processing_label()}."
+            f"{self._t('status_mode')}: {self._selected_split_mode_label()}. "
+            f"{self._t('status_active_format')}: {self._selected_format_label()}. "
+            f"{self._t('status_processing')}: {self._selected_processing_label()}."
         )
 
     def _on_processing_device_changed(self, _event: tk.Event[tk.Misc]) -> None:
@@ -477,8 +606,9 @@ class VideoSplitterApp:
         self.processing_device_var.set(selected_value)
         self._persist_ui_settings()
         self.status_var.set(
-            f"Modo: {self._selected_split_mode_label()}. Formato activo: {self._selected_format_label()}."
-            f" Procesamiento: {self._selected_processing_label()}."
+            f"{self._t('status_mode')}: {self._selected_split_mode_label()}. "
+            f"{self._t('status_active_format')}: {self._selected_format_label()}. "
+            f"{self._t('status_processing')}: {self._selected_processing_label()}."
         )
 
     def _select_video(self) -> None:
@@ -612,6 +742,7 @@ class VideoSplitterApp:
 
     def _persist_ui_settings(self) -> None:
         save_ui_settings(
+            language=self.language_var.get().strip().lower() or "es",
             input_video=self.video_var.get().strip(),
             split_mode=self.split_mode_var.get().strip() or DEFAULT_SPLIT_MODE,
             segment_seconds=self._parse_positive_int(self.segment_var.get(), 60),
@@ -772,7 +903,7 @@ class VideoSplitterApp:
                 control.state(["!disabled"])
 
         self.start_button.configure(
-            text="Procesando..." if running else "Dividir Video",
+            text=("Processing..." if self.language_var.get() == "en" else "Procesando...") if running else self._t("split_video"),
             state=("disabled" if running else "normal"),
         )
         self.cancel_button.configure(state=("normal" if running else "disabled"))
