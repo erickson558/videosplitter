@@ -76,6 +76,7 @@ def get_ui_settings() -> dict[str, object]:
     container_format = _read_string(payload, "container_format", DEFAULT_CONTAINER_FORMAT) or DEFAULT_CONTAINER_FORMAT
 
     return {
+        "input_video": _read_string(payload, "input_video"),
         "split_mode": split_mode,
         "segment_seconds": _read_positive_int(payload, "segment_seconds", 60),
         "equal_parts_count": _read_positive_int(payload, "equal_parts_count", 2),
@@ -98,6 +99,7 @@ def save_ffmpeg_settings(ffmpeg_path: Path, ffprobe_path: Path | None = None) ->
 
 def save_ui_settings(
     *,
+    input_video: str,
     split_mode: str,
     segment_seconds: int,
     equal_parts_count: int,
@@ -109,6 +111,7 @@ def save_ui_settings(
     payload = load_settings()
     payload.update(
         {
+            "input_video": input_video.strip(),
             "split_mode": split_mode,
             "segment_seconds": max(int(segment_seconds), 1),
             "equal_parts_count": max(int(equal_parts_count), 1),

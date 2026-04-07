@@ -1,5 +1,17 @@
 # Changelog
 
+## V1.3.1 - 2026-04-07
+
+- Release message: fix: improve label contrast and persist selected input video in UI settings
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.3.0...v1.3.1
+
+### Fixes
+- fix: increase label and hint contrast in the desktop GUI for better readability
+- fix: persist and restore the last selected input video path along with existing UI settings
+
+### Tests
+- test: extend settings persistence coverage to include input video field
+
 ## V1.3.0 - 2026-04-07
 
 - Release message: feat: redesign desktop UI with structured cards and stronger visual hierarchy

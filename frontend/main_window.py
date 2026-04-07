@@ -63,7 +63,7 @@ class VideoSplitterApp:
 
         saved_ui_settings = get_ui_settings()
 
-        self.video_var = tk.StringVar()
+        self.video_var = tk.StringVar(value=str(saved_ui_settings.get("input_video", "")))
         self.output_var = tk.StringVar(value=str(saved_ui_settings["output_dir"]))
         self.split_mode_var = tk.StringVar(value=str(saved_ui_settings["split_mode"]))
         self.segment_var = tk.StringVar(value=str(saved_ui_settings["segment_seconds"]))
@@ -124,10 +124,10 @@ class VideoSplitterApp:
         )
         style.configure("Section.TLabelframe", background="#fffdf8", borderwidth=1, relief="solid")
         style.configure("Section.TLabelframe.Label", background="#fffdf8", foreground="#153243", font=("Bahnschrift", 11))
-        style.configure("Field.TLabel", background="#fffdf8", foreground="#25313a", font=("Calibri", 10))
+        style.configure("Field.TLabel", background="#fffdf8", foreground="#0f2a38", font=("Calibri", 10, "bold"))
         style.configure("DropZone.TLabel", background="#f8dcc2", foreground="#2f2f2f", padding=12, relief="solid")
         style.configure("Metric.TLabel", background="#fffdf8", foreground="#153243", font=("Bahnschrift", 10))
-        style.configure("Hint.TLabel", background="#fffdf8", foreground="#6d6875", font=("Calibri", 9))
+        style.configure("Hint.TLabel", background="#fffdf8", foreground="#2e3f49", font=("Calibri", 9))
         style.configure("Accent.TButton", font=("Bahnschrift SemiBold", 10))
         style.configure("Danger.TButton", font=("Bahnschrift SemiBold", 10))
         style.map("Accent.TButton", background=[("!disabled", "#2a9d8f"), ("active", "#21867a")], foreground=[("!disabled", "#ffffff")])
@@ -596,6 +596,7 @@ class VideoSplitterApp:
 
     def _persist_ui_settings(self) -> None:
         save_ui_settings(
+            input_video=self.video_var.get().strip(),
             split_mode=self.split_mode_var.get().strip() or DEFAULT_SPLIT_MODE,
             segment_seconds=self._parse_positive_int(self.segment_var.get(), 60),
             equal_parts_count=max(self._parse_positive_int(self.equal_parts_var.get(), 2), 2),
