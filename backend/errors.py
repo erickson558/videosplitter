@@ -16,3 +16,7 @@ class FFmpegBinaryNotFoundError(VideoSplitterError):
 class SplitExecutionError(VideoSplitterError):
     """Raised when FFmpeg fails while splitting the video."""
 
+
+class SplitCancelledError(VideoSplitterError):
+    """Raised when the user cancels an active split operation."""
+

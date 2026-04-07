@@ -1,4 +1,4 @@
-# VideoSplitter V1.1.3
+# VideoSplitter V1.2.0
 
 [![CI](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml/badge.svg)](https://github.com/erickson558/videosplitter/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/erickson558/videosplitter?label=release)](https://github.com/erickson558/videosplitter/releases)
@@ -40,7 +40,11 @@
 | Division en partes iguales | Divide el video en N partes de igual duracion |
 | Aceleracion por hardware | Detecta y usa GPU NVIDIA (NVENC), Intel (QSV) o AMD (AMF) automaticamente |
 | Fallback automatico | Si la GPU falla en tiempo de ejecucion, reintenta con CPU sin interrumpir al usuario |
+| Seleccion por GPU instalada | Detecta adaptadores NVIDIA/Intel/AMD instalados y muestra opciones compatibles en la GUI |
 | Selector de GPU | ComboBox para elegir dispositivo: auto, CPU, GPU especifica por indice, QSV o AMF |
+| Arrastrar y soltar | Permite cargar video arrastrando el archivo a la zona de drop de la ventana |
+| Cancelacion segura | Boton para cancelar la conversion liberando el proceso FFmpeg activo |
+| Progreso dual | Muestra porcentaje procesado y porcentaje pendiente durante la conversion |
 | Perfiles de video | Short 9:16 (1080x1920), Normal 16:9 (1920x1080) u Original (sin redimensionar) |
 | Contenedores | MP4, MKV y MOV |
 | Codec de video | H.264 (libx264 / h264_nvenc / h264_qsv / h264_amf) |
@@ -113,13 +117,14 @@ python main.py
 
 ### Pasos en la interfaz
 
-1. **Video** — selecciona el archivo de entrada con `Buscar...`
+1. **Video** — selecciona el archivo de entrada con `Buscar...` o arrastrando y soltando
 2. **Salida** — elige la carpeta donde se guardan las partes
 3. **Modo de division** — `Por segundos` o `Partes iguales`
 4. **Perfil de video** — Short 9:16, Normal 16:9 u Original
 5. **Contenedor** — MP4, MKV o MOV
 6. **Procesamiento** — elige dispositivo GPU o CPU (ver abajo)
 7. Pulsa **Dividir Video**
+8. Si necesitas detener el proceso, pulsa **Cancelar** para liberar FFmpeg
 
 ### Ejemplo de salida
 
@@ -159,7 +164,7 @@ El archivo `videosplitter.settings.json` se crea automaticamente y guarda:
 
 ```json
 {
-  "app_version": "1.1.1",
+  "app_version": "1.2.0",
   "split_mode": "seconds",
   "segment_seconds": 60,
   "equal_parts_count": 2,

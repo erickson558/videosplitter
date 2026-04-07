@@ -7,7 +7,7 @@ import tkinter as tk
 from pathlib import Path
 
 from app_metadata import APP_TITLE
-from frontend.main_window import VideoSplitterApp
+from frontend.main_window import VideoSplitterApp, create_root_window
 
 
 def _runtime_dir() -> Path:
@@ -22,7 +22,7 @@ def _first_icon(directory: Path) -> Path | None:
 
 
 def main() -> None:
-    root = tk.Tk()
+    root = create_root_window()
     root.title(APP_TITLE)
 
     icon = _first_icon(_runtime_dir())

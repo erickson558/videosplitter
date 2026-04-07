@@ -8,8 +8,14 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+except ImportError:  # pragma: no cover
+    DND_FILES = None
+    TkinterDnD = None
+
 from app_metadata import APP_TITLE
-from backend.errors import FFmpegBinaryNotFoundError, VideoSplitterError
+from backend.errors import FFmpegBinaryNotFoundError, SplitCancelledError, VideoSplitterError
 from backend.models import (
     DEFAULT_PROCESSING_DEVICE,
     DEFAULT_SPLIT_MODE,
@@ -32,6 +38,16 @@ from backend.settings import (
     save_ui_settings,
 )
 from backend.video_splitter_service import VideoSplitterService
+
+
+SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".m4v", ".webm"}
+
+
+def create_root_window() -> tk.Tk:
+    """Create a Tk root with drag-and-drop support when available."""
+    if TkinterDnD is not None:
+        return TkinterDnD.Tk()
+    return tk.Tk()
 
 
 class VideoSplitterApp:
@@ -64,6 +80,8 @@ class VideoSplitterApp:
 
         self._events: queue.Queue[tuple[str, object]] = queue.Queue()
         self._worker: threading.Thread | None = None
+        self._active_service: VideoSplitterService | None = None
+        self._service_lock = threading.Lock()
         self._progress_indeterminate = False
         self._controls: list[tk.Widget] = []
         self._processing_options: list[tuple[str, str]] = []
@@ -73,30 +91,73 @@ class VideoSplitterApp:
 
         self.status_var = tk.StringVar(value=self._initial_status_text())
         self.progress_var = tk.DoubleVar(value=0.0)
+        self.processed_percent_var = tk.StringVar(value="Procesado: 0.0%")
+        self.pending_percent_var = tk.StringVar(value="Pendiente: 100.0%")
+
+        self._configure_styles()
 
         self._build_layout()
         self.root.after(self._POLL_INTERVAL_MS, self._flush_events)
 
-    def _build_layout(self) -> None:
-        container = ttk.Frame(self.root, padding=16)
-        container.pack(fill="both", expand=True)
-        container.columnconfigure(1, weight=1)
+    def _configure_styles(self) -> None:
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
 
-        ttk.Label(container, text="Video").grid(row=0, column=0, sticky="w", pady=(0, 10))
-        video_entry = ttk.Entry(container, textvariable=self.video_var)
+        self.root.configure(bg="#f3f7fb")
+        style.configure("Card.TFrame", background="#ffffff")
+        style.configure("Header.TFrame", background="#0e7490")
+        style.configure("HeaderTitle.TLabel", background="#0e7490", foreground="#f0fdfa", font=("Segoe UI", 16, "bold"))
+        style.configure("HeaderSub.TLabel", background="#0e7490", foreground="#ccfbf1", font=("Segoe UI", 10))
+        style.configure("DropZone.TLabel", background="#e6fffb", foreground="#0f172a", padding=10, relief="solid")
+        style.configure("Metric.TLabel", background="#ffffff", foreground="#0f172a", font=("Segoe UI", 10, "bold"))
+        style.configure("Accent.TButton", font=("Segoe UI", 10, "bold"))
+        style.map("Accent.TButton", background=[("active", "#0891b2")])
+
+    def _build_layout(self) -> None:
+        container = ttk.Frame(self.root, padding=0, style="Card.TFrame")
+        container.pack(fill="both", expand=True)
+        container.columnconfigure(0, weight=1)
+
+        header = ttk.Frame(container, padding=(18, 16), style="Header.TFrame")
+        header.grid(row=0, column=0, sticky="ew")
+        ttk.Label(header, text="VideoSplitter", style="HeaderTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            header,
+            text="Divide videos por segundos o partes iguales con GPU/CPU y cancelacion segura.",
+            style="HeaderSub.TLabel",
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+
+        body = ttk.Frame(container, padding=16, style="Card.TFrame")
+        body.grid(row=1, column=0, sticky="nsew")
+        body.columnconfigure(1, weight=1)
+
+        ttk.Label(body, text="Video").grid(row=0, column=0, sticky="w", pady=(0, 10))
+        video_entry = ttk.Entry(body, textvariable=self.video_var)
         video_entry.grid(row=0, column=1, sticky="ew", pady=(0, 10), padx=(10, 10))
-        video_button = ttk.Button(container, text="Buscar...", command=self._select_video)
+        video_button = ttk.Button(body, text="Buscar...", command=self._select_video)
         video_button.grid(row=0, column=2, sticky="ew", pady=(0, 10))
 
-        ttk.Label(container, text="Salida").grid(row=1, column=0, sticky="w", pady=(0, 10))
-        output_entry = ttk.Entry(container, textvariable=self.output_var)
-        output_entry.grid(row=1, column=1, sticky="ew", pady=(0, 10), padx=(10, 10))
-        output_button = ttk.Button(container, text="Carpeta...", command=self._select_output_dir)
-        output_button.grid(row=1, column=2, sticky="ew", pady=(0, 10))
+        self.drop_zone = ttk.Label(
+            body,
+            text="Arrastra y suelta aqui un archivo de video",
+            style="DropZone.TLabel",
+            anchor="center",
+        )
+        self.drop_zone.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 12))
+        self._register_drop_target()
 
-        ttk.Label(container, text="Modo de division").grid(row=2, column=0, sticky="nw", pady=(0, 10))
-        split_mode_frame = ttk.Frame(container)
-        split_mode_frame.grid(row=2, column=1, columnspan=2, sticky="w", pady=(0, 10), padx=(10, 0))
+        ttk.Label(body, text="Salida").grid(row=2, column=0, sticky="w", pady=(0, 10))
+        output_entry = ttk.Entry(body, textvariable=self.output_var)
+        output_entry.grid(row=2, column=1, sticky="ew", pady=(0, 10), padx=(10, 10))
+        output_button = ttk.Button(body, text="Carpeta...", command=self._select_output_dir)
+        output_button.grid(row=2, column=2, sticky="ew", pady=(0, 10))
+
+        ttk.Label(body, text="Modo de division").grid(row=3, column=0, sticky="nw", pady=(0, 10))
+        split_mode_frame = ttk.Frame(body)
+        split_mode_frame.grid(row=3, column=1, columnspan=2, sticky="w", pady=(0, 10), padx=(10, 0))
         split_mode_buttons = [
             ttk.Radiobutton(
                 split_mode_frame,
@@ -116,17 +177,17 @@ class VideoSplitterApp:
         for index, button in enumerate(split_mode_buttons):
             button.grid(row=0, column=index, sticky="w", padx=(0, 18))
 
-        ttk.Label(container, text="Segundos por parte").grid(row=3, column=0, sticky="w", pady=(0, 10))
-        self.segment_entry = ttk.Entry(container, textvariable=self.segment_var, width=8)
-        self.segment_entry.grid(row=3, column=1, sticky="w", pady=(0, 10), padx=(10, 10))
+        ttk.Label(body, text="Segundos por parte").grid(row=4, column=0, sticky="w", pady=(0, 10))
+        self.segment_entry = ttk.Entry(body, textvariable=self.segment_var, width=8)
+        self.segment_entry.grid(row=4, column=1, sticky="w", pady=(0, 10), padx=(10, 10))
 
-        ttk.Label(container, text="Cantidad de partes").grid(row=4, column=0, sticky="w", pady=(0, 10))
-        self.equal_parts_entry = ttk.Spinbox(container, from_=2, to=999, textvariable=self.equal_parts_var, width=8)
-        self.equal_parts_entry.grid(row=4, column=1, sticky="w", pady=(0, 10), padx=(10, 10))
+        ttk.Label(body, text="Cantidad de partes").grid(row=5, column=0, sticky="w", pady=(0, 10))
+        self.equal_parts_entry = ttk.Spinbox(body, from_=2, to=999, textvariable=self.equal_parts_var, width=8)
+        self.equal_parts_entry.grid(row=5, column=1, sticky="w", pady=(0, 10), padx=(10, 10))
 
-        ttk.Label(container, text="Perfil de video").grid(row=5, column=0, sticky="nw", pady=(0, 8))
-        video_profiles_frame = ttk.Frame(container)
-        video_profiles_frame.grid(row=5, column=1, columnspan=2, sticky="ew", pady=(0, 10), padx=(10, 0))
+        ttk.Label(body, text="Perfil de video").grid(row=6, column=0, sticky="nw", pady=(0, 8))
+        video_profiles_frame = ttk.Frame(body)
+        video_profiles_frame.grid(row=6, column=1, columnspan=2, sticky="ew", pady=(0, 10), padx=(10, 0))
         profile_buttons: list[ttk.Radiobutton] = []
 
         for profile in iter_video_profiles():
@@ -140,9 +201,9 @@ class VideoSplitterApp:
             button.pack(anchor="w")
             profile_buttons.append(button)
 
-        ttk.Label(container, text="Contenedor").grid(row=6, column=0, sticky="nw", pady=(0, 12))
-        containers_frame = ttk.Frame(container)
-        containers_frame.grid(row=6, column=1, columnspan=2, sticky="ew", pady=(0, 12), padx=(10, 0))
+        ttk.Label(body, text="Contenedor").grid(row=7, column=0, sticky="nw", pady=(0, 12))
+        containers_frame = ttk.Frame(body)
+        containers_frame.grid(row=7, column=1, columnspan=2, sticky="ew", pady=(0, 12), padx=(10, 0))
         container_buttons: list[ttk.Radiobutton] = []
         for format_item in iter_container_formats():
             button = ttk.Radiobutton(
@@ -155,36 +216,55 @@ class VideoSplitterApp:
             button.pack(side="left", padx=(0, 16))
             container_buttons.append(button)
 
-        ttk.Label(container, text="Procesamiento").grid(row=7, column=0, sticky="w", pady=(0, 12))
-        self.processing_combo = ttk.Combobox(container, state="readonly", width=42)
-        self.processing_combo.grid(row=7, column=1, columnspan=2, sticky="w", pady=(0, 12), padx=(10, 0))
+        ttk.Label(body, text="Procesamiento").grid(row=8, column=0, sticky="w", pady=(0, 12))
+        self.processing_combo = ttk.Combobox(body, state="readonly", width=42)
+        self.processing_combo.grid(row=8, column=1, columnspan=2, sticky="w", pady=(0, 12), padx=(10, 0))
         self._refresh_processing_combobox()
         self.processing_combo.bind("<<ComboboxSelected>>", self._on_processing_device_changed)
 
         self.progress_bar = ttk.Progressbar(
-            container,
+            body,
             variable=self.progress_var,
             maximum=100,
             mode="determinate",
         )
-        self.progress_bar.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        self.progress_bar.grid(row=9, column=0, columnspan=3, sticky="ew", pady=(0, 8))
 
-        status_label = ttk.Label(container, textvariable=self.status_var)
-        status_label.grid(row=9, column=0, columnspan=3, sticky="w", pady=(0, 14))
+        metrics_frame = ttk.Frame(body, style="Card.TFrame")
+        metrics_frame.grid(row=10, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        metrics_frame.columnconfigure((0, 1), weight=1)
+        ttk.Label(metrics_frame, textvariable=self.processed_percent_var, style="Metric.TLabel").grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Label(metrics_frame, textvariable=self.pending_percent_var, style="Metric.TLabel").grid(
+            row=0, column=1, sticky="e"
+        )
+
+        status_label = ttk.Label(body, textvariable=self.status_var)
+        status_label.grid(row=11, column=0, columnspan=3, sticky="w", pady=(0, 14))
 
         self.start_button = ttk.Button(
-            container,
+            body,
             text="Dividir Video",
             command=self._start_job,
+            style="Accent.TButton",
         )
-        self.start_button.grid(row=10, column=0, columnspan=2, sticky="ew", padx=(0, 10))
+        self.start_button.grid(row=12, column=0, sticky="ew", padx=(0, 10))
+
+        self.cancel_button = ttk.Button(
+            body,
+            text="Cancelar",
+            command=self._cancel_job,
+            state="disabled",
+        )
+        self.cancel_button.grid(row=12, column=1, sticky="ew", padx=(0, 10))
 
         self.ffmpeg_button = ttk.Button(
-            container,
+            body,
             text="Configurar FFmpeg...",
             command=self._configure_ffmpeg,
         )
-        self.ffmpeg_button.grid(row=10, column=2, sticky="ew")
+        self.ffmpeg_button.grid(row=12, column=2, sticky="ew")
 
         for entry in (output_entry, self.segment_entry, self.equal_parts_entry):
             entry.bind("<FocusOut>", self._persist_ui_settings_event)
@@ -204,6 +284,59 @@ class VideoSplitterApp:
             self.ffmpeg_button,
         ]
         self._sync_split_mode_controls()
+
+    def _register_drop_target(self) -> None:
+        if DND_FILES is None:
+            self.drop_zone.configure(text="Arrastrar y soltar no disponible. Instala tkinterdnd2 para habilitarlo.")
+            return
+
+        # Bind drag-and-drop to both zone and root for better UX.
+        for target in (self.drop_zone, self.root):
+            try:
+                target.drop_target_register(DND_FILES)
+                target.dnd_bind("<<Drop>>", self._on_drop_file)
+            except tk.TclError:
+                continue
+
+    def _on_drop_file(self, event: tk.Event[tk.Misc]) -> None:
+        if self._worker and self._worker.is_alive():
+            return
+
+        dropped_path = self._extract_first_dropped_path(getattr(event, "data", ""))
+        if dropped_path is None:
+            self.status_var.set("No se detecto un archivo valido en el arrastre.")
+            return
+
+        self._apply_video_selection(dropped_path)
+        self.status_var.set(
+            f"Video cargado por arrastre. Modo: {self._selected_split_mode_label()}. "
+            f"Formato activo: {self._selected_format_label()}."
+        )
+
+    def _extract_first_dropped_path(self, data: str) -> Path | None:
+        if not data:
+            return None
+
+        # Tk may return a list with braces for paths containing spaces.
+        for raw_item in self.root.tk.splitlist(data):
+            item = raw_item.strip().strip("{}\"")
+            if not item:
+                continue
+            candidate = Path(item)
+            if candidate.is_file() and candidate.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
+                return candidate
+        return None
+
+    def _cancel_job(self) -> None:
+        with self._service_lock:
+            service = self._active_service
+
+        if service is None:
+            return
+
+        service.cancel_current_job()
+        self.status_var.set("Cancelando conversion y liberando FFmpeg...")
+        self.cancel_button.configure(state="disabled")
 
     def _initialize_processing_options(self) -> None:
         options = VideoSplitterService.detect_processing_options(get_saved_ffmpeg_path())
@@ -302,9 +435,10 @@ class VideoSplitterApp:
         if not selected:
             return
 
-        video_path = Path(selected)
-        self.video_var.set(str(video_path))
+        self._apply_video_selection(Path(selected))
 
+    def _apply_video_selection(self, video_path: Path) -> None:
+        self.video_var.set(str(video_path))
         if not self.output_var.get().strip():
             self.output_var.set(str(video_path.parent))
         self._persist_ui_settings()
@@ -446,14 +580,21 @@ class VideoSplitterApp:
     def _run_split_job(self, config: SplitJobConfig) -> None:
         try:
             service = VideoSplitterService()
+            with self._service_lock:
+                self._active_service = service
             files = service.split_video(config, progress_callback=self._queue_progress)
             self._events.put(("done", files))
+        except SplitCancelledError as exc:
+            self._events.put(("canceled", str(exc)))
         except FFmpegBinaryNotFoundError as exc:
             self._events.put(("ffmpeg_missing", str(exc)))
         except VideoSplitterError as exc:
             self._events.put(("error", str(exc)))
         except Exception as exc:  # pragma: no cover
             self._events.put(("error", f"Error inesperado: {exc}"))
+        finally:
+            with self._service_lock:
+                self._active_service = None
 
     def _queue_progress(self, percent: float | None, message: str) -> None:
         self._events.put(("progress", (percent, message)))
@@ -473,6 +614,8 @@ class VideoSplitterApp:
                 self._finish_with_success(files)
             elif event == "ffmpeg_missing":
                 self._handle_missing_ffmpeg(str(payload))
+            elif event == "canceled":
+                self._finish_with_cancellation(str(payload))
             elif event == "error":
                 self._finish_with_error(str(payload))
 
@@ -508,18 +651,25 @@ class VideoSplitterApp:
                 self.progress_bar.configure(mode="indeterminate")
                 self.progress_bar.start(9)
                 self._progress_indeterminate = True
+            self.processed_percent_var.set("Procesado: calculando...")
+            self.pending_percent_var.set("Pendiente: calculando...")
         else:
             if self._progress_indeterminate:
                 self.progress_bar.stop()
                 self.progress_bar.configure(mode="determinate")
                 self._progress_indeterminate = False
-            self.progress_var.set(max(0.0, min(percent, 100.0)))
+            normalized = max(0.0, min(percent, 100.0))
+            self.progress_var.set(normalized)
+            self.processed_percent_var.set(f"Procesado: {normalized:.1f}%")
+            self.pending_percent_var.set(f"Pendiente: {max(100.0 - normalized, 0.0):.1f}%")
 
         self.status_var.set(message)
 
     def _finish_with_success(self, files: list[Path]) -> None:
         self._stop_progress_animation()
         self.progress_var.set(100.0)
+        self.processed_percent_var.set("Procesado: 100.0%")
+        self.pending_percent_var.set("Pendiente: 0.0%")
         self.status_var.set(
             f"Proceso completado. Archivos generados: {len(files)}. "
             f"Formato: {self._selected_format_label()}. "
@@ -536,8 +686,19 @@ class VideoSplitterApp:
     def _finish_with_error(self, error_message: str) -> None:
         self._stop_progress_animation()
         self._set_running_state(False)
+        self.processed_percent_var.set(f"Procesado: {self.progress_var.get():.1f}%")
+        self.pending_percent_var.set(f"Pendiente: {max(100.0 - self.progress_var.get(), 0.0):.1f}%")
         self.status_var.set("El proceso termino con error.")
         messagebox.showerror("Error", error_message, parent=self.root)
+
+    def _finish_with_cancellation(self, message: str) -> None:
+        self._stop_progress_animation()
+        self._set_running_state(False)
+        current = max(0.0, min(self.progress_var.get(), 100.0))
+        self.processed_percent_var.set(f"Procesado: {current:.1f}%")
+        self.pending_percent_var.set(f"Pendiente: {max(100.0 - current, 0.0):.1f}%")
+        self.status_var.set("Conversion cancelada por el usuario.")
+        messagebox.showinfo("Cancelado", message or "Conversion cancelada por el usuario.", parent=self.root)
 
     def _stop_progress_animation(self) -> None:
         if self._progress_indeterminate:
@@ -556,4 +717,5 @@ class VideoSplitterApp:
             text="Procesando..." if running else "Dividir Video",
             state=("disabled" if running else "normal"),
         )
+        self.cancel_button.configure(state=("normal" if running else "disabled"))
 

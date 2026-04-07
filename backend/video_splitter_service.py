@@ -5,10 +5,11 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import threading
 from pathlib import Path
 from typing import Callable
 
-from .errors import FFmpegBinaryNotFoundError, SplitExecutionError
+from .errors import FFmpegBinaryNotFoundError, SplitCancelledError, SplitExecutionError
 from .ffmpeg_locator import locate_ffmpeg, locate_ffprobe
 from .models import (
     EQUAL_PARTS_SPLIT_MODE,
@@ -57,6 +58,24 @@ class VideoSplitterService:
 
         self._available_h264_encoders = self._detect_available_h264_encoders()
         self._preferred_video_encoder = self._select_preferred_encoder(self._available_h264_encoders)
+        self._cancel_requested = threading.Event()
+        self._process_lock = threading.Lock()
+        self._active_process: subprocess.Popen[str] | None = None
+
+    def cancel_current_job(self) -> bool:
+        """Request cancellation and terminate an active FFmpeg process when possible."""
+        self._cancel_requested.set()
+        with self._process_lock:
+            process = self._active_process
+
+        if process is None:
+            return False
+
+        if process.poll() is not None:
+            return False
+
+        process.terminate()
+        return True
 
     @classmethod
     def detect_processing_options(cls, ffmpeg_path: Path | None = None) -> list[tuple[str, str]]:
@@ -74,6 +93,9 @@ class VideoSplitterService:
             return options
 
         available = cls._available_h264_encoders_from_output(encoders_output)
+        adapters = cls._detect_display_adapters()
+        has_intel_gpu = any("intel" in name.lower() for name in adapters)
+        has_amd_gpu = any(token in name.lower() for name in adapters for token in ("amd", "radeon"))
 
         if "h264_nvenc" in available:
             nvidia_gpus = cls._detect_nvidia_gpus()
@@ -81,14 +103,18 @@ class VideoSplitterService:
                 options.append((PROCESSING_DEVICE_GPU_ALL, f"GPU NVIDIA (todas: {len(nvidia_gpus)})"))
                 for index, name in nvidia_gpus:
                     options.append((f"gpu_{index}", f"GPU NVIDIA {index}: {name}"))
+            elif any("nvidia" in name.lower() for name in adapters):
+                options.append((PROCESSING_DEVICE_GPU_ALL, "GPU NVIDIA (detectada)"))
             else:
                 options.append((PROCESSING_DEVICE_GPU_ALL, "GPU NVIDIA (auto)"))
 
-        if "h264_qsv" in available:
-            options.append((PROCESSING_DEVICE_GPU_QSV, "GPU Intel QSV"))
+        if "h264_qsv" in available and has_intel_gpu:
+            intel_name = cls._first_adapter_match(adapters, ("intel",))
+            options.append((PROCESSING_DEVICE_GPU_QSV, f"GPU Intel QSV ({intel_name})"))
 
-        if "h264_amf" in available:
-            options.append((PROCESSING_DEVICE_GPU_AMF, "GPU AMD AMF"))
+        if "h264_amf" in available and has_amd_gpu:
+            amd_name = cls._first_adapter_match(adapters, ("amd", "radeon"))
+            options.append((PROCESSING_DEVICE_GPU_AMF, f"GPU AMD AMF ({amd_name})"))
 
         return options
 
@@ -97,6 +123,7 @@ class VideoSplitterService:
         config: SplitJobConfig,
         progress_callback: ProgressCallback | None = None,
     ) -> list[Path]:
+        self._cancel_requested.clear()
         validated = config.validated()
         duration_seconds = self._probe_duration(validated.input_video)
         split_points = self._build_split_points(validated, duration_seconds)
@@ -105,6 +132,8 @@ class VideoSplitterService:
             progress_callback(0.0, "Preparando division de video...")
             if duration_seconds is None:
                 progress_callback(None, "No se pudo leer la duracion exacta del video.")
+
+        self._raise_if_cancel_requested()
 
         output_pattern = (
             validated.output_dir
@@ -122,6 +151,7 @@ class VideoSplitterService:
         try:
             self._run_ffmpeg(command, duration_seconds, progress_callback)
         except SplitExecutionError:
+            self._raise_if_cancel_requested()
             if selected_encoder == "libx264":
                 raise
 
@@ -140,6 +170,7 @@ class VideoSplitterService:
             )
             self._run_ffmpeg(cpu_command, duration_seconds, progress_callback)
 
+        self._raise_if_cancel_requested()
         output_parts = self._collect_output_parts(validated)
         if not output_parts:
             raise SplitExecutionError("FFmpeg finalizo sin generar archivos de salida.")
@@ -349,6 +380,58 @@ class VideoSplitterService:
             entries.append((int(index_text), name.strip()))
         return entries
 
+    @staticmethod
+    def _detect_display_adapters() -> list[str]:
+        """Read installed display adapters from Windows when available."""
+        if os.name != "nt":
+            return []
+
+        commands = [
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
+            ],
+            [
+                "wmic",
+                "path",
+                "win32_videocontroller",
+                "get",
+                "name",
+            ],
+        ]
+
+        for command in commands:
+            try:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    **_hidden_process_kwargs(),
+                )
+            except OSError:
+                continue
+
+            if result.returncode != 0:
+                continue
+
+            adapters = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            filtered = [name for name in adapters if name.lower() != "name"]
+            if filtered:
+                return filtered
+
+        return []
+
+    @staticmethod
+    def _first_adapter_match(adapters: list[str], tokens: tuple[str, ...]) -> str:
+        for name in adapters:
+            lowered = name.lower()
+            if any(token in lowered for token in tokens):
+                return name
+        return "detectada"
+
     def _build_split_points(
         self,
         config: SplitJobConfig,
@@ -373,6 +456,7 @@ class VideoSplitterService:
         duration_seconds: float | None,
         progress_callback: ProgressCallback | None,
     ) -> None:
+        self._raise_if_cancel_requested()
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -383,6 +467,8 @@ class VideoSplitterService:
             bufsize=1,
             **_hidden_process_kwargs(),
         )
+        with self._process_lock:
+            self._active_process = process
 
         if process.stdout is None:
             raise SplitExecutionError("No se pudo leer la salida de FFmpeg.")
@@ -391,6 +477,7 @@ class VideoSplitterService:
 
         try:
             for raw_line in process.stdout:
+                self._raise_if_cancel_requested()
                 line = raw_line.strip()
                 if not line:
                     continue
@@ -414,12 +501,21 @@ class VideoSplitterService:
                     progress_callback(99.9, "Finalizando archivos de salida...")
         finally:
             process.stdout.close()
+            with self._process_lock:
+                if self._active_process is process:
+                    self._active_process = None
 
         return_code = process.wait()
+        if self._cancel_requested.is_set() or return_code in {-15, -9}:  # pragma: no cover
+            raise SplitCancelledError("Conversion cancelada por el usuario.")
         if return_code != 0:
             details = "\n".join(error_lines[-10:]).strip()
             message = details or f"FFmpeg termino con codigo {return_code}."
             raise SplitExecutionError(message)
+
+    def _raise_if_cancel_requested(self) -> None:
+        if self._cancel_requested.is_set():
+            raise SplitCancelledError("Conversion cancelada por el usuario.")
 
     def _probe_duration(self, input_video: Path) -> float | None:
         if self.ffprobe_path is None:

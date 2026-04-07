@@ -1,5 +1,19 @@
 # Changelog
 
+## V1.2.0 - 2026-04-07
+
+- Release message: feat: add drag-and-drop UX, cancellation control, and adapter-aware GPU selection
+- Compare: https://github.com/erickson558/videosplitter/compare/v1.1.3...v1.2.0
+
+### Features
+- feat: add drag-and-drop input zone in the GUI to load source videos without opening a file dialog
+- feat: add Cancel button to stop active conversions and release FFmpeg process safely
+- feat: display processed and pending percentages while the conversion is running
+- feat: improve GPU detection by correlating FFmpeg encoder support with installed display adapters
+
+### Tests
+- test: add coverage for cancellation lifecycle and adapter-aware GPU option detection
+
 ## V1.1.3 - 2026-03-16
 
 - Release message: fix: harden processing device label initialization during app startup

@@ -3,8 +3,9 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from backend.errors import SplitExecutionError
+from backend.errors import SplitCancelledError, SplitExecutionError
 from backend.models import EQUAL_PARTS_SPLIT_MODE, SECONDS_SPLIT_MODE, SplitJobConfig
 from backend.video_splitter_service import VideoSplitterService
 
@@ -128,6 +129,32 @@ class VideoSplitterServiceTests(unittest.TestCase):
 
         self.assertEqual(option_keys, ["auto", "cpu"])
 
+    def test_detect_processing_options_includes_intel_qsv_only_when_intel_adapter_exists(self) -> None:
+        with patch.object(VideoSplitterService, "_read_encoders_output", return_value="V..... h264_qsv"):
+            with patch.object(VideoSplitterService, "_detect_display_adapters", return_value=["Intel Iris Xe"]):
+                options = VideoSplitterService.detect_processing_options(Path("ffmpeg.exe"))
+
+        option_keys = [item[0] for item in options]
+        self.assertIn("gpu_qsv", option_keys)
+
+    def test_detect_processing_options_omits_amd_when_no_amd_adapter_exists(self) -> None:
+        with patch.object(VideoSplitterService, "_read_encoders_output", return_value="V..... h264_amf"):
+            with patch.object(VideoSplitterService, "_detect_display_adapters", return_value=["Intel UHD"]):
+                options = VideoSplitterService.detect_processing_options(Path("ffmpeg.exe"))
+
+        option_keys = [item[0] for item in options]
+        self.assertNotIn("gpu_amf", option_keys)
+
+    def test_detect_processing_options_includes_nvidia_auto_when_nvidia_adapter_exists(self) -> None:
+        with patch.object(VideoSplitterService, "_read_encoders_output", return_value="V..... h264_nvenc"):
+            with patch.object(VideoSplitterService, "_detect_nvidia_gpus", return_value=[]):
+                with patch.object(VideoSplitterService, "_detect_display_adapters", return_value=["NVIDIA RTX 4070"]):
+                    options = VideoSplitterService.detect_processing_options(Path("ffmpeg.exe"))
+
+        option_map = dict(options)
+        self.assertIn("gpu_all", option_map)
+        self.assertIn("detectada", option_map["gpu_all"].lower())
+
     def test_select_video_encoder_prefers_nvenc_then_qsv_then_amf(self) -> None:
         selected_nvenc = self.service._select_video_encoder(" V..... h264_qsv\n V..... h264_nvenc\n")
         selected_qsv = self.service._select_video_encoder(" V..... h264_qsv\n")
@@ -138,6 +165,36 @@ class VideoSplitterServiceTests(unittest.TestCase):
         self.assertEqual(selected_qsv, "h264_qsv")
         self.assertEqual(selected_amf, "h264_amf")
         self.assertEqual(selected_cpu, "libx264")
+
+    def test_cancel_current_job_returns_false_when_idle(self) -> None:
+        self.assertFalse(self.service.cancel_current_job())
+
+    def test_cancel_current_job_terminates_active_process(self) -> None:
+        class DummyProcess:
+            def __init__(self) -> None:
+                self._terminated = False
+
+            def poll(self) -> None:
+                return None
+
+            def terminate(self) -> None:
+                self._terminated = True
+
+        process = DummyProcess()
+        with self.service._process_lock:
+            self.service._active_process = process
+
+        self.assertTrue(self.service.cancel_current_job())
+        self.assertTrue(process._terminated)
+
+    def test_run_ffmpeg_raises_cancelled_if_requested_before_spawn(self) -> None:
+        self.service._cancel_requested.set()
+
+        with patch("subprocess.Popen") as popen:
+            with self.assertRaisesRegex(SplitCancelledError, "cancelada"):
+                self.service._run_ffmpeg(["ffmpeg", "-version"], None, None)
+
+        popen.assert_not_called()
 
 
 if __name__ == "__main__":
