@@ -1,4 +1,4 @@
 # Dependencias para compilar el ejecutable en Windows.
 pyinstaller>=6.19,<7
-Pillow>=11,<12
+Pillow>=12.2.0,<13
 tkinterdnd2>=0.4.3,<1
